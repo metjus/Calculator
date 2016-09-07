@@ -1,6 +1,6 @@
 
 function result(){
-  
+
 }
 
 function add(a, b) {
@@ -20,7 +20,7 @@ function divide(a, b) {
 }
 
 function AllClear(){
-    a=2;
-    b=2;
+    a=0;
+    b=0;
     document.getElementById('result').innerHTML = 0;
   }
