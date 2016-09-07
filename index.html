@@ -13,42 +13,48 @@
 
     <link rel="stylesheet" type="text/css" href="style.css">
     <script src="script.js"></script>
+    <script src="test.js"></script>
     <link rel="shortcut icon" type="image/png" href="#" />
 </head>
 
 <body>
     <div class="wrapper">
-      <div class="result"></div>
-      <div class="first">
-        <nav class="ac">AC</nav>
-        <nav class="c">C</nav>
-        <nav class="percent">%</nav>
-        <nav class="divide">/</nav>
-      </div>
-      <div class="second">
-        <nav class="n7">7</nav>
-        <nav class="n8">8</nav>
-        <nav class="n9">9</nav>
-        <nav class="multiply">x</nav>
-      </div>
-      <div class="third">
-        <nav class="n4">4</nav>
-        <nav class="n5">5</nav>
-        <nav class="n6">6</nav>
-        <nav class="substract">-</nav>
-      </div>
-      <div class="fourth">
-        <nav class="n1">1</nav>
-        <nav class="n2">2</nav>
-        <nav class="n3">3</nav>
-        <nav class="add">+</nav>
-      </div>
-      <div class="fifth">
-        <nav class="n0">0</nav>
-        <nav class="score">,</nav>
-        <nav class="equals">=</nav>
-      </div>
+        <div class="p_result">
+            <div class="result_tab">
+              <div id="result">0</div>
+            </div>
+        </div>
+        <div class="first">
+            <nav class="ac"onclick="ac()">AC</nav>
+            <nav class="c"onclick="c()">C</nav>
+            <nav class="percent">%</nav>
+            <nav class="divide">/</nav>
+        </div>
+        <div class="second">
+            <nav class="n7">7</nav>
+            <nav class="n8">8</nav>
+            <nav class="n9">9</nav>
+            <nav class="multiply">x</nav>
+        </div>
+        <div class="third">
+            <nav class="n4">4</nav>
+            <nav class="n5">5</nav>
+            <nav class="n6">6</nav>
+            <nav class="substract">-</nav>
+        </div>
+        <div class="fourth">
+            <nav class="n1" onclick="n1()">1</nav>
+            <nav class="n2">2</nav>
+            <nav class="n3">3</nav>
+            <nav class="add">+</nav>
+        </div>
+        <div class="fifth">
+            <nav class="n0">0</nav>
+            <nav class="score">,</nav>
+            <nav class="equals" onclick="result()">=</nav>
+        </div>
     </div>
+            <p class="bottom">Not working... yet.</p>
 </body>
 
 </html>
