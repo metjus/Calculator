@@ -1,37 +1,121 @@
 body {
-  margin: 0;
-  padding: 0;
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+    font-weight: 100;
 }
 
-.result {
-  background-color: #3C3C3C;
-  width: 100%;
-  height: 50px;
-}
+@import 'https://fonts.googleapis.com/css?family=Roboto';
 
 .wrapper {
-  width: 50%;
-  margin: auto;
+    width: 30%;
+    background-color: #f5f4f2;
+    border-radius: 5px;
+    position: absolute;
+    top: 10%;
+    left: 35%;
+    right: 35%;
+    -webkit-box-shadow: 0px 0px 8px 1px rgba(0, 0, 0, 0.2);
+    -moz-box-shadow: 0px 0px 8px 1px rgba(0, 0, 0, 0.2);
+    box-shadow: 0px 0px 8px 1px rgba(0, 0, 0, 0.2);
 }
 
-.first , .second , .third , .fourth , .fifth {
-  display: flex;
-  justify-content: flex-start;
+.p_result {
+    padding-top: 5%;
 }
 
-.ac , .c , .percent , .divide , .n7 , .n8 , .n9 ,
-.multiply , .n4 , .n5 , .n6 , .substract , .n1 , .n2 , .n3 , .add , .score , .equals {
-  width: 20%;
-  display: inline-block;
-  margin: auto;
-  text-align: center;
-  padding: 3% 1%;
+.result_tab {
+    background-color: #343434;
+    color: white;
+    font-size: 3em;
+    width: 85%;
+    margin: auto;
+    height: 75px;
+    border-radius: 5px;
+}
+
+#result {
+  text-align: right;
+  padding-right: 5%;
+  padding-top: 2.5%;
+  padding-bottom: 2.5%;
+}
+
+.first, .second, .third, .fourth, .fifth {
+    display: flex;
+    justify-content: flex-start;
+    width: 90%;
+    margin: 0 auto;
+}
+
+.ac, .c, .percent, .divide, .n7, .n8, .n9, .multiply, .n4, .n5, .n6, .substract, .n1, .n2, .n3, .add, .score, .equals {
+    width: 20%;
+    display: inline-block;
+    margin: auto;
+    text-align: center;
+    padding: 3.5% 0;
+    background-color: #eeeeee;
+    margin-top: 5%;
+    border-radius: 5px;
+    -webkit-box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+    -moz-box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+}
+
+.n0:hover, .ac:hover, .c:hover, .percent:hover, .divide:hover, .n7:hover,
+ .n8:hover, .n9:hover, .multiply:hover, .n4:hover, .n5:hover, .n6:hover, .substract:hover, .n1:hover,
+  .n2:hover, .n3:hover, .add:hover, .score:hover , .equals:hover {
+  background-color: #e0e0e0;
+}
+
+.n0:active, .ac:active, .c:active, .percent:active, .divide:active, .n7:active,
+ .n8:active, .n9:active, .multiply:active, .n4:active, .n5:active, .n6:active, .substract:active, .n1:active,
+  .n2:active, .n3:active, .add:active, .score:active , .equals:active {
+  transform: translateY(5px);
+  border: 0;
 }
 
 .n0 {
-  width: 40%;
-  display: inline-block;
-  margin: auto;
-  text-align: center;
-  padding: 3% 1%;
+    width: 45%;
+    display: inline-block;
+    margin: auto;
+    text-align: center;
+    padding: 3.5% 0;
+    background-color: #eeeeee;
+    margin-top: 5%;
+    margin-bottom: 5%;
+    border-radius: 5px;
+    -webkit-box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+    -moz-box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+}
+
+.n0, .n1, .n2, .n3, .n4, .n5, .n6, .n7, .n8, .n9, .score {
+    font-weight: bold;
+}
+
+.bottom {
+  text-align: center;;
+}
+
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px) {
+  .wrapper {
+    width: 60%;
+    left: 20%;
+  }
+}
+
+@media only screen
+and (min-device-width : 320px)
+and (max-device-width : 767px) {
+  .wrapper {
+    width: 90%;
+    left: 5%;
+  }
 }
