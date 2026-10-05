@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hmac
+import secrets
 import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,14 +42,19 @@ class SignUp(Credentials):
     workspace_name: str | None = Field(default=None, max_length=200)
 
 
+LOCAL_EMAIL = "local@webaudit.invalid"  # the desktop app's only user; .invalid never resolves
+
+
 class Me(BaseModel):
     email: str
     workspace_id: int
     workspace_name: str
+    local: bool = False  # desktop app: no sign-out, a Quit button instead
 
 
-def _me(user: User) -> Me:
-    return Me(email=user.email, workspace_id=user.workspace_id, workspace_name=user.workspace.name)
+def _me(user: User, settings: Settings | None = None) -> Me:
+    local = bool(settings and settings.local_mode)
+    return Me(email=user.email, workspace_id=user.workspace_id, workspace_name=user.workspace.name, local=local)
 
 
 async def _start_session(response: Response, db: AsyncSession, user: User, settings: Settings) -> None:
@@ -122,5 +130,25 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
 
 
 @router.get("/me", response_model=Me)
-async def me(user: User = Depends(current_user)) -> Me:
-    return _me(user)
+async def me(user: User = Depends(current_user), settings: Settings = Depends(get_settings)) -> Me:
+    return _me(user, settings)
+
+
+@router.get("/local", include_in_schema=False)
+async def local_sign_in(
+    token: str = Query(..., max_length=200), db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> Response:
+    """Desktop app: the launcher opens this URL with its per-launch token; no password exists."""
+    if not settings.local_mode or not settings.local_token or not hmac.compare_digest(token, settings.local_token):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
+    user = await db.scalar(select(User).where(User.email == LOCAL_EMAIL))
+    if user is None:
+        workspace = Workspace(name="My workspace", profile={})
+        db.add(workspace)
+        await db.flush()
+        user = User(email=LOCAL_EMAIL, password_hash=hash_password(secrets.token_urlsafe(32)), workspace_id=workspace.id)
+        db.add(user)
+        await db.flush()
+    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    await _start_session(response, db, user, settings)
+    return response

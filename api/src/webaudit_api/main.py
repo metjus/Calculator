@@ -6,14 +6,16 @@ import asyncio
 import contextlib
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .db import create_schema, make_engine, make_sessionmaker
+from .deps import current_user
+from .models import User
 from .routers import audits, auth, companies, search, settings
 from .security import CSRF_HEADER, CSRF_VALUE, KeyBox
 from .settings import Settings
@@ -21,9 +23,17 @@ from .worker import AuditWorker
 
 log = logging.getLogger("webaudit.api")
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 
-def create_app(app_settings: Settings | None = None, *, start_worker: bool | None = None, worker_kwargs: dict | None = None) -> FastAPI:
+def create_app(
+    app_settings: Settings | None = None,
+    *,
+    start_worker: bool | None = None,
+    worker_kwargs: dict | None = None,
+    on_quit: Callable[[], None] | None = None,
+) -> FastAPI:
+    """``on_quit`` is called by ``POST /api/local/quit`` in the desktop app (local mode)."""
     app_settings = app_settings or Settings()
 
     @contextlib.asynccontextmanager
@@ -56,6 +66,12 @@ def create_app(app_settings: Settings | None = None, *, start_worker: bool | Non
 
     @app.middleware("http")
     async def csrf_guard(request: Request, call_next):  # noqa: ANN001, ANN202
+        # Desktop app: only answer requests addressed to the loopback name, so a web page using
+        # DNS rebinding (evil.example → 127.0.0.1) cannot read the local API.
+        if app_settings.local_mode:
+            host = request.headers.get("host", "").rsplit(":", 1)[0].strip("[]").lower()
+            if host not in LOCAL_HOSTS:
+                return JSONResponse({"detail": "Invalid host"}, status_code=400)
         # Cookies are SameSite=Lax; state-changing API calls must also carry a custom header,
         # which a cross-site form or image cannot send.
         if request.url.path.startswith("/api/") and request.method not in SAFE_METHODS:
@@ -75,6 +91,13 @@ def create_app(app_settings: Settings | None = None, *, start_worker: bool | Non
     @app.get("/api/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.post("/api/local/quit", status_code=204, include_in_schema=False)
+    async def quit_app(user: User = Depends(current_user)) -> Response:
+        if not app_settings.local_mode or on_quit is None:
+            raise HTTPException(404, "Not Found")
+        asyncio.get_running_loop().call_later(0.3, on_quit)  # let the response reach the window first
+        return Response(status_code=204)
 
     _mount_web(app)
     return app

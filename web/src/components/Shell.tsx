@@ -1,6 +1,7 @@
-import { Check, ClipboardCheck, LayoutDashboard, LogOut, Moon, Search, SlidersHorizontal, Sun, Users } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, ClipboardCheck, LayoutDashboard, LogOut, Moon, Power, Search, SlidersHorizontal, Sun, Users } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { useTheme } from "../lib/theme";
 
@@ -24,6 +25,20 @@ export function Shell({ children, followUps = 0 }: { children: ReactNode; follow
   const { me, signOut } = useSession();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
+  const [closed, setClosed] = useState(false);
+  if (closed) {
+    return (
+      <div className="auth">
+        <div className="auth-card" style={{ textAlign: "center" }}>
+          <div className="auth-brand" style={{ justifyContent: "center" }}>
+            <BrandMark />
+            Web Audit
+          </div>
+          <p>Web Audit has stopped. You can close this window.</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="shell">
       <aside className="side">
@@ -52,20 +67,37 @@ export function Shell({ children, followUps = 0 }: { children: ReactNode; follow
             {theme === "dark" ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </button>
-          <button
-            type="button"
-            className="side-btn"
-            onClick={async () => {
-              await signOut();
-              navigate("/login");
-            }}
-          >
-            <LogOut size={18} aria-hidden />
-            Sign out
-          </button>
-          <div className="side-user" title={me?.email}>
-            {me?.email}
-          </div>
+          {me?.local ? (
+            // Desktop app: one local user, so quitting replaces signing out.
+            <button
+              type="button"
+              className="side-btn"
+              onClick={async () => {
+                await api("/api/local/quit", { method: "POST" }).catch(() => undefined);
+                setClosed(true);
+              }}
+            >
+              <Power size={18} aria-hidden />
+              Quit Web Audit
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="side-btn"
+                onClick={async () => {
+                  await signOut();
+                  navigate("/login");
+                }}
+              >
+                <LogOut size={18} aria-hidden />
+                Sign out
+              </button>
+              <div className="side-user" title={me?.email}>
+                {me?.email}
+              </div>
+            </>
+          )}
         </div>
       </aside>
       <main className="main" id="main">

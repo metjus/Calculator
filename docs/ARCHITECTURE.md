@@ -159,6 +159,19 @@ What exists now, and where it deliberately differs from the target picture above
 Configuration is environment-only (`WEBAUDIT_*`, see `api/README.md`); nothing
 secret is read from files in the repository.
 
+## Desktop first, SaaS later (decided after stage 2)
+
+While only the owner uses the tool, it ships as a Windows program
+(`desktop/`, WebAudit.exe) so there is no server to pay for. It is the same
+code: the launcher starts the FastAPI app in **local mode** on 127.0.0.1 and
+shows the React UI in a native window (Edge WebView2). Local mode means one
+local user signed in with a per-launch token, no sign-up, a loopback-only Host
+check against DNS rebinding, and a Quit button. Data lives in `data/` next to
+the exe, as the original brief asked (one movable folder, backup on every
+start, newest 10 kept). Scans use the Edge built into Windows. The SaaS path
+(Docker image, server settings) stays in the repository and is picked up again
+when the tool is sold to other designers.
+
 ## Claude Code export (added after stage 2, on request)
 
 After a scan, each scored website can be downloaded as a ZIP for Claude Code

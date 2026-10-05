@@ -1,0 +1,107 @@
+# Builds the Windows desktop program (WebAudit.exe) and tests it on Windows.
+# Download: Actions → this workflow → latest run → Artifacts → "WebAudit-windows".
+name: Desktop app (Windows)
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths:
+      - "core/**"
+      - "api/**"
+      - "web/**"
+      - "desktop/**"
+      - ".github/workflows/desktop-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests on Windows (Edge)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      WEBAUDIT_BROWSER_CHANNEL: msedge  # the browser the exe scans with
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e "core[dev]" -e "api[dev]"
+      - name: Core tests
+        working-directory: core
+        run: python -m pytest -q
+      - name: API tests
+        working-directory: api
+        run: python -m pytest -q
+
+  build:
+    name: Build WebAudit.exe
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build the interface
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e "core[browser]" -e api -e "desktop[dev]"
+
+      - name: Desktop tests
+        working-directory: desktop
+        run: python -m pytest -q
+
+      - name: Package with PyInstaller
+        run: pyinstaller desktop/WebAudit.spec --noconfirm
+
+      - name: Self-test the exe on a real website (Edge, no window)
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP "selftest-data"
+          $report = Join-Path $env:RUNNER_TEMP "selftest.json"
+          $p = Start-Process -FilePath "dist\WebAudit\WebAudit.exe" -ArgumentList "--data", "`"$data`"", "--self-test", "https://example.com", "--report", "`"$report`"" -Wait -PassThru
+          if (Test-Path $report) { Get-Content $report } else { Write-Host "no report written" }
+          Write-Host "---- log ----"
+          Get-Content (Join-Path $data "logs\webaudit.log") -Tail 80 -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+
+      - name: Open the program window for 30 seconds (smoke test)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP "window-data"
+          $p = Start-Process -FilePath "dist\WebAudit\WebAudit.exe" -ArgumentList "--data", "`"$data`"" -PassThru
+          Start-Sleep -Seconds 30
+          $log = Get-Content (Join-Path $data "logs\webaudit.log") -ErrorAction SilentlyContinue
+          $log | Select-Object -Last 40
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          if ($log -match "could not open the program window") { throw "window did not open (see log above)" }
+
+      - name: Upload the program
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebAudit-windows
+          path: dist/WebAudit
+          if-no-files-found: error
+          retention-days: 30

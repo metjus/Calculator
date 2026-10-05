@@ -19,6 +19,7 @@
   --track: #ebe7df;
   --neutral: #cdc7bc;
   --overlay: rgba(29, 27, 24, 0.35);
+  --on-overlay: #ffffff;
 
   /* score categories – validated: adjacent categories differ in lightness */
   --crit: #9b1111;
@@ -63,6 +64,7 @@
   --track: #242826;
   --neutral: #3d4240;
   --overlay: rgba(0, 0, 0, 0.55);
+  --on-overlay: #ffffff;
 
   --crit: #c92a4a;
   --weak: #ec8329;

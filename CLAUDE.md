@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A website-audit SaaS for web designers (brief in Slovak: `docs/SPEC.sk.md`; SaaS translation and stage plan: `docs/ARCHITECTURE.md`). The brief is built **in stages, showing the user each result before continuing**; check the stage table in `docs/ARCHITECTURE.md` before starting new work. The brief also requires showing UI design proposals before writing any UI code.
 
-Stages 1–2 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`).
+Stages 1–2 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
 
 ## Commands (run from `core/`)
 
@@ -27,7 +27,11 @@ cd api && ../.venv/bin/pytest                          # API tests (~4 s), reuse
 cd web && npm run build                                # tsc --noEmit + vite build → web/dist (served by the API)
 WEBAUDIT_SECRET_KEY=dev ../.venv/bin/webaudit-api      # :8000; `npm run dev` in web/ proxies /api to it
 docker compose up --build                              # whole app in one image (Dockerfile at the repo root)
+cd desktop && ../.venv/bin/pytest                      # launcher tests incl. a windowless self-test
+../.venv/bin/pyinstaller desktop/WebAudit.spec --noconfirm   # from the repo root; needs web/dist
 ```
+
+The Windows exe is built and tested by `.github/workflows/desktop-windows.yml` (core + API tests with Edge, PyInstaller, `WebAudit.exe --self-test https://example.com`).
 
 The Docker image is based on `mcr.microsoft.com/playwright/python` (Chromium included); its tag and the `playwright==` pin in the Dockerfile must match. In cloud containers the Debian and Playwright CDNs are blocked, so test image builds with that base and `docker build --network host` plus the agent-proxy CA (see `/root/.ccr/README.md`).
 
@@ -74,6 +78,7 @@ Invariants that span files:
 - The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.
 - Google Places results: store only `place_id`. OSM names may be stored; show the ODbL attribution wherever OSM data appears.
 - External services in tests: `app.state.search_transport` (httpx `MockTransport`); never call real Google/OSM from tests.
+- **Local mode** (`WEBAUDIT_LOCAL_MODE`, desktop only): `/api/auth/local?token=` signs in the single local user with the launcher's per-launch token; the CSRF middleware also rejects any Host other than `127.0.0.1`/`localhost`; `POST /api/local/quit` calls the launcher's `on_quit`. Never enable it on a server.
 - UI code uses the token roles in `web/src/styles/tokens.css` and components in `web/src/components/ui.tsx`; no raw hex in components (Leaflet shapes are the documented exception).
 
 ## Tests

@@ -44,7 +44,7 @@ export async function api<T>(path: string, options: { method?: string; body?: Js
 
 // ------------------------------------------------------------------ types
 
-export type Me = { email: string; workspace_id: number; workspace_name: string };
+export type Me = { email: string; workspace_id: number; workspace_name: string; local?: boolean };
 
 export type KeyState = {
   service: "pagespeed" | "claude" | "google_places";

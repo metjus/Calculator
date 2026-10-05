@@ -255,6 +255,34 @@ function SitesTable({ auditId, sites }: { auditId: number; sites: Site[] }) {
   );
 }
 
+/** Thumbnails that open full size in the page itself (the desktop window has no tabs). */
+function Screenshots({ base, names, host }: { base: string; names: string[]; host: string }) {
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  return (
+    <>
+      <div className="shots">
+        {names.map((name) => (
+          <button key={name} type="button" className="shot-thumb" onClick={() => setOpen(name)} aria-label={`Show the ${name} screenshot full size`}>
+            <img src={`${base}/${name}`} alt={`${name} screenshot of ${host}`} width={name === "mobile" ? 90 : 280} loading="lazy" />
+          </button>
+        ))}
+      </div>
+      {open && (
+        <div className="lightbox" role="dialog" aria-modal="true" aria-label={`${open} screenshot of ${host}`} onClick={() => setOpen(null)}>
+          <img src={`${base}/${open}`} alt={`${open} screenshot of ${host}`} />
+          <span className="lightbox-hint">Click anywhere or press Esc to close</span>
+        </div>
+      )}
+    </>
+  );
+}
+
 type SiteDetailData = {
   issues: { check_id: string; status: "warn" | "fail"; impact: number; label: string; summary: string }[];
   result: { screenshots?: Record<string, string>; tech?: { cms: string | null; cms_version: string | null } } | null;
@@ -345,20 +373,7 @@ function SiteDetail({ auditId, site }: { auditId: number; site: Site }) {
         <p>No problems found.</p>
       )}
       {tech?.cms && <span className="pill">{[tech.cms, tech.cms_version].filter(Boolean).join(" ")}</span>}
-      {shots.length > 0 && (
-        <div className="shots">
-          {shots.map((name) => (
-            <a key={name} href={`/api/audits/${auditId}/sites/${site.id}/screenshots/${name}`} target="_blank" rel="noreferrer">
-              <img
-                src={`/api/audits/${auditId}/sites/${site.id}/screenshots/${name}`}
-                alt={`${name} screenshot of ${hostOf(site.final_url)}`}
-                width={name === "mobile" ? 90 : 280}
-                loading="lazy"
-              />
-            </a>
-          ))}
-        </div>
-      )}
+      {shots.length > 0 && <Screenshots base={`/api/audits/${auditId}/sites/${site.id}/screenshots`} names={shots} host={hostOf(site.final_url)} />}
     </div>
   );
 }

@@ -949,3 +949,38 @@ table.table {
 .export-text strong {
   font-size: 14px;
 }
+
+/* --------------------------------------------------- screenshot lightbox */
+
+.shot-thumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--overlay);
+  cursor: zoom-out;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: calc(100vh - 80px);
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  background: var(--surface);
+}
+.lightbox-hint {
+  color: var(--on-overlay);
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}

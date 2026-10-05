@@ -14,6 +14,7 @@ contacted business in a simple CRM.
 |---|---|---|
 | 1 | Scanning core: polite crawler, ~40 checks, scoring, CLI | ✅ `core/` |
 | 2 | Web app (direction B “Petrol”), accounts, settings & API keys, batch audits with live progress, business search, customer list | ✅ `api/`, `web/` |
+| – | Windows program WebAudit.exe (same app, local, no server) and export for Claude Code | ✅ `desktop/` |
 | 3–9 | Audit dashboard, AI design review, PDF, prices, CRM, archive, launch | planned |
 
 The full brief is in [`docs/SPEC.sk.md`](docs/SPEC.sk.md); how it maps to a SaaS
@@ -21,7 +22,28 @@ is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Run it
 
-### On your computer, with Docker (recommended)
+### Windows program (WebAudit.exe) – recommended for now
+
+No server, no Docker, no Python. The program is built and tested on Windows by
+GitHub Actions ([`desktop-windows.yml`](.github/workflows/desktop-windows.yml)):
+
+1. Open the repository on GitHub → **Actions** → **Desktop app (Windows)** → the
+   latest green run → **Artifacts** → download **WebAudit-windows**.
+2. Unzip it somewhere you can write to, e.g. `Documents\WebAudit` (not `Program Files`).
+3. Double-click **WebAudit.exe**. Windows may say “Windows protected your PC”
+   because the program is not code-signed yet: **More info → Run anyway**.
+
+The program opens in its own window and needs no account. Everything it creates
+is in the `data` folder next to `WebAudit.exe`: database, screenshots, page
+snapshots, exports, logs, the key that encrypts your API keys, and a backup of
+the database from each of the last 10 starts. Move or back up that one folder
+to take everything with you. Websites are scanned with the Microsoft Edge that
+is part of Windows.
+
+To update, download the new version and copy your old `data` folder next to the
+new `WebAudit.exe`.
+
+### On your computer, with Docker
 
 You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows, macOS or Linux).
 

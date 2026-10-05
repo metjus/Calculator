@@ -310,21 +310,29 @@ class Browser:
             raise BrowserUnavailable("Playwright is not installed (pip install 'webaudit[browser]')") from exc
         self._pw = await async_playwright().start()
         executable = os.environ.get("WEBAUDIT_CHROMIUM_PATH") or None
+        # The desktop app uses the browser that ships with Windows: WEBAUDIT_BROWSER_CHANNEL=msedge.
+        channel = None if executable else (os.environ.get("WEBAUDIT_BROWSER_CHANNEL") or None)
         # All browser traffic (incl. redirects, WebSockets and loopback) goes through the
         # guarded proxy, which is the real SSRF boundary; the route handler only fails fast.
         proxy_url = await self._proxy.start()
-        try:
-            self._browser = await self._pw.chromium.launch(
-                executable_path=executable,
-                args=["--disable-dev-shm-usage"],
-                proxy={"server": proxy_url},
-            )
-        except Exception as exc:  # noqa: BLE001 - surface a readable reason
-            await self._pw.stop()
-            await self._proxy.close()
-            self._pw = None
-            first_line = str(exc).strip().splitlines()[0] if str(exc).strip() else exc.__class__.__name__
-            raise BrowserUnavailable(f"Chromium could not start: {first_line[:200]}") from exc
+        attempts = [channel, None] if channel else [None]  # fall back to Playwright's own Chromium
+        error: Exception | None = None
+        for attempt in attempts:
+            try:
+                self._browser = await self._pw.chromium.launch(
+                    executable_path=executable,
+                    channel=attempt,
+                    args=["--disable-dev-shm-usage"],
+                    proxy={"server": proxy_url},
+                )
+                return
+            except Exception as exc:  # noqa: BLE001 - try the next option, then surface a readable reason
+                error = exc
+        await self._pw.stop()
+        await self._proxy.close()
+        self._pw = None
+        first_line = str(error).strip().splitlines()[0] if str(error).strip() else error.__class__.__name__
+        raise BrowserUnavailable(f"Chromium could not start: {first_line[:200]}") from error
 
     async def close(self) -> None:
         if self._browser is not None:

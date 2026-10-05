@@ -115,6 +115,8 @@ def _no_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def chromium_available() -> bool:
+    if os.environ.get("WEBAUDIT_BROWSER_CHANNEL"):  # e.g. msedge on Windows
+        return True
     path = os.environ.get("WEBAUDIT_CHROMIUM_PATH")
     if path:
         return Path(path).exists()
