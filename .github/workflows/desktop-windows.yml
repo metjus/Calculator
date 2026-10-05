@@ -37,10 +37,12 @@ jobs:
         run: python -m pip install -e "core[dev]" -e "api[dev]"
       - name: Core tests
         working-directory: core
-        run: python -m pytest -q
+        timeout-minutes: 10
+        run: python -m pytest -q --durations=10 -o faulthandler_timeout=120
       - name: API tests
         working-directory: api
-        run: python -m pytest -q
+        timeout-minutes: 10
+        run: python -m pytest -v --durations=10 -o faulthandler_timeout=90
 
   build:
     name: Build WebAudit.exe
