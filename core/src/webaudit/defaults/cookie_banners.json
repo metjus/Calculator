@@ -1,0 +1,31 @@
+{
+  "_comment": "Before measuring and taking screenshots the scanner tries to close the cookie bar: first the known consent-manager buttons, then any visible button whose text matches one of these phrases (in this order).",
+  "selectors": [
+    "#onetrust-accept-btn-handler",
+    "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
+    "#CybotCookiebotDialogBodyButtonAccept",
+    "#CybotCookiebotDialogBodyButtonDecline",
+    ".cky-btn-accept",
+    "#cookie_action_close_header",
+    ".cmplz-accept",
+    "#didomi-notice-agree-button",
+    ".cc-allow",
+    ".cc-dismiss",
+    "[data-cookiefirst-action='accept']",
+    ".iubenda-cs-accept-btn",
+    ".osano-cm-accept-all",
+    "button[data-testid='uc-accept-all-button']",
+    "#BorlabsCookieBox a[data-cookie-accept-all]",
+    ".moove-gdpr-infobar-allow-all",
+    "#cn-accept-cookie",
+    ".siteCookies__button",
+    "#consentAccept"
+  ],
+  "phrases": [
+    "prijať všetko", "prijať všetky", "prijať", "súhlasím", "súhlasím so všetkým", "akceptovať", "akceptovať všetko", "povoliť všetky", "povoliť všetko", "rozumiem",
+    "přijmout vše", "přijmout všechny", "přijmout", "souhlasím", "povolit vše", "povolit všechny", "rozumím",
+    "accept all", "accept all cookies", "accept", "accept cookies", "i agree", "agree", "allow all", "allow cookies", "got it", "ok",
+    "odmietnuť", "odmietnuť všetko", "odmítnout", "odmítnout vše", "reject all", "reject", "decline"
+  ],
+  "banner_text_markers": ["cookie", "cookies", "súbory cookie", "soubory cookie", "gdpr"]
+}

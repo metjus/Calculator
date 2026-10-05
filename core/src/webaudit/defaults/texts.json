@@ -1,0 +1,246 @@
+{
+  "_comment": "Client-facing texts. Every problem has: label (short name), problem (what is wrong, one plain sentence), impact (what it causes), solution (how to fix, no price). An optional 'warn' object overrides the texts when the check only warns. Formal address, constructive tone, careful wording, no invented numbers.",
+  "categories": {
+    "critical": {"sk": "Kritický", "cs": "Kritický", "en": "Critical"},
+    "weak": {"sk": "Slabý", "cs": "Slabý", "en": "Weak"},
+    "ok": {"sk": "OK", "cs": "OK", "en": "OK"},
+    "good": {"sk": "Dobrý", "cs": "Dobrý", "en": "Good"}
+  },
+  "areas": {
+    "basics": {"sk": "Základ", "cs": "Základ", "en": "Basics"},
+    "mobile": {"sk": "Mobil", "cs": "Mobil", "en": "Mobile"},
+    "speed": {"sk": "Rýchlosť", "cs": "Rychlost", "en": "Speed"},
+    "seo": {"sk": "SEO", "cs": "SEO", "en": "SEO"},
+    "trust": {"sk": "Dôvera a obsah", "cs": "Důvěra a obsah", "en": "Trust & content"},
+    "tech": {"sk": "Technika", "cs": "Technika", "en": "Tech"},
+    "accessibility": {"sk": "Prístupnosť", "cs": "Přístupnost", "en": "Accessibility"},
+    "design": {"sk": "Dizajn", "cs": "Design", "en": "Design"},
+    "design_ai": {"sk": "Dizajn (AI posudok)", "cs": "Design (AI posudek)", "en": "Design (AI review)"}
+  },
+  "issues": {
+    "basics.https": {
+      "sk": {"label": "Web nemá zabezpečené pripojenie (HTTPS)", "problem": "Web sa načítava cez nezabezpečené pripojenie (http namiesto https).", "impact": "Prehliadače pri ňom často zobrazujú upozornenie „Nezabezpečené“, čo môže návštevníkov odradiť, najmä pri vypĺňaní formulára. Vyhľadávače zabezpečené weby uprednostňujú.", "solution": "Zapnúť SSL certifikát (pri väčšine hostingov je zadarmo) a nastaviť web tak, aby sa vždy otváral cez https."},
+      "cs": {"label": "Web nemá zabezpečené připojení (HTTPS)", "problem": "Web se načítá přes nezabezpečené připojení (http místo https).", "impact": "Prohlížeče u něj často zobrazují upozornění „Nezabezpečeno“, což může návštěvníky odradit, zvlášť při vyplňování formuláře. Vyhledávače zabezpečené weby upřednostňují.", "solution": "Zapnout SSL certifikát (u většiny hostingů je zdarma) a nastavit web tak, aby se vždy otevíral přes https."},
+      "en": {"label": "No secure connection (HTTPS)", "problem": "The website loads over an unsecured connection (http instead of https).", "impact": "Browsers often mark such sites as “Not secure”, which can put visitors off, especially when filling in a form. Search engines also prefer secure sites.", "solution": "Enable an SSL certificate (free with most hosting plans) and make the site always open over https."}
+    },
+    "basics.ssl_valid": {
+      "sk": {"label": "Problém s bezpečnostným certifikátom", "problem": "Bezpečnostný certifikát webu je neplatný alebo čoskoro vyprší.", "impact": "Pri neplatnom certifikáte prehliadač namiesto webu ukáže výrazné varovanie a mnohí návštevníci stránku hneď zavrú.", "solution": "Obnoviť alebo správne nastaviť certifikát a zapnúť jeho automatické predlžovanie."},
+      "cs": {"label": "Problém s bezpečnostním certifikátem", "problem": "Bezpečnostní certifikát webu je neplatný nebo brzy vyprší.", "impact": "Při neplatném certifikátu prohlížeč místo webu ukáže výrazné varování a mnoho návštěvníků stránku hned zavře.", "solution": "Obnovit nebo správně nastavit certifikát a zapnout jeho automatické prodlužování."},
+      "en": {"label": "Security certificate problem", "problem": "The website's security certificate is invalid or about to expire.", "impact": "With an invalid certificate, browsers show a prominent warning instead of the site, and many visitors leave right away.", "solution": "Renew or correctly install the certificate and turn on automatic renewal."}
+    },
+    "basics.http_redirect": {
+      "sk": {"label": "Web sa neotvára vždy zabezpečene", "problem": "Keď niekto napíše adresu bez „https“, web sa otvorí v nezabezpečenej verzii.", "impact": "Časť návštevníkov tak uvidí upozornenie „Nezabezpečené“ a vyhľadávače môžu web vnímať ako dve rôzne stránky.", "solution": "Nastaviť presmerovanie, ktoré každého návštevníka automaticky pošle na zabezpečenú verziu.",
+        "warn": {"problem": "Adresa webu bez „https“ sa vôbec neotvorí.", "impact": "Ľudia, ktorí adresu napíšu ručne alebo kliknú na starší odkaz, môžu namiesto webu vidieť chybu.", "solution": "Nastaviť, aby aj adresa bez https fungovala a presmerovala na zabezpečenú verziu."}},
+      "cs": {"label": "Web se neotevírá vždy zabezpečeně", "problem": "Když někdo napíše adresu bez „https“, web se otevře v nezabezpečené verzi.", "impact": "Část návštěvníků tak uvidí upozornění „Nezabezpečeno“ a vyhledávače mohou web vnímat jako dvě různé stránky.", "solution": "Nastavit přesměrování, které každého návštěvníka automaticky pošle na zabezpečenou verzi.",
+        "warn": {"problem": "Adresa webu bez „https“ se vůbec neotevře.", "impact": "Lidé, kteří adresu napíšou ručně nebo kliknou na starší odkaz, mohou místo webu vidět chybu.", "solution": "Nastavit, aby i adresa bez https fungovala a přesměrovala na zabezpečenou verzi."}},
+      "en": {"label": "Site doesn't always open securely", "problem": "When someone types the address without “https”, the unsecured version of the site opens.", "impact": "Some visitors will see a “Not secure” warning, and search engines may treat the site as two separate websites.", "solution": "Set up a redirect that automatically sends every visitor to the secure version.",
+        "warn": {"problem": "The site address without “https” doesn't open at all.", "impact": "People who type the address by hand or click an older link may see an error instead of the site.", "solution": "Make the address without https work and redirect to the secure version."}}
+    },
+    "mobile.viewport": {
+      "sk": {"label": "Web nie je prispôsobený mobilom", "problem": "Na mobile sa web zobrazí ako zmenšená verzia počítačovej stránky.", "impact": "Väčšina ľudí dnes hľadá firmy cez telefón; keď musia stránku približovať a posúvať, často ju zavrú a skúsia konkurenciu.", "solution": "Upraviť web tak, aby sa automaticky prispôsobil šírke obrazovky (responzívny dizajn).",
+        "warn": {"problem": "Web na mobile nedovolí priblížiť text.", "impact": "Ľudia so slabším zrakom si text nemôžu zväčšiť a stránku môžu opustiť.", "solution": "Povoliť približovanie stránky na mobiloch."}},
+      "cs": {"label": "Web není přizpůsobený mobilům", "problem": "Na mobilu se web zobrazí jako zmenšená verze počítačové stránky.", "impact": "Většina lidí dnes hledá firmy přes telefon; když musí stránku přibližovat a posouvat, často ji zavřou a zkusí konkurenci.", "solution": "Upravit web tak, aby se automaticky přizpůsobil šířce obrazovky (responzivní design).",
+        "warn": {"problem": "Web na mobilu nedovolí přiblížit text.", "impact": "Lidé se slabším zrakem si text nemohou zvětšit a stránku mohou opustit.", "solution": "Povolit přibližování stránky na mobilech."}},
+      "en": {"label": "Not adapted for mobile phones", "problem": "On a phone, the website shows as a shrunken version of the desktop page.", "impact": "Most people now look for businesses on their phones; when they have to zoom and scroll sideways, they often leave and try a competitor.", "solution": "Rebuild the layout so it automatically adapts to the screen width (responsive design).",
+        "warn": {"problem": "The site prevents zooming on phones.", "impact": "People with weaker eyesight can't enlarge the text and may leave the page.", "solution": "Allow zooming on mobile devices."}}
+    },
+    "mobile.font_size": {
+      "sk": {"label": "Drobné písmo na mobile", "problem": "Text je na mobile príliš drobný a stránku treba približovať.", "impact": "Keď sa stránka zle číta, ľudia ju často zavrú skôr, než nájdu, čo hľadali.", "solution": "Zväčšiť základné písmo pre mobily, aby sa text dal pohodlne čítať bez približovania."},
+      "cs": {"label": "Drobné písmo na mobilu", "problem": "Text je na mobilu příliš drobný a stránku je nutné přibližovat.", "impact": "Když se stránka špatně čte, lidé ji často zavřou dřív, než najdou, co hledali.", "solution": "Zvětšit základní písmo pro mobily, aby se text dal pohodlně číst bez přibližování."},
+      "en": {"label": "Small text on mobile", "problem": "Text is too small on phones, so visitors have to zoom in.", "impact": "When a page is hard to read, people often close it before finding what they came for.", "solution": "Increase the base font size for mobile so text is comfortable to read without zooming."}
+    },
+    "mobile.tap_targets": {
+      "sk": {"label": "Malé tlačidlá a odkazy na mobile", "problem": "Tlačidlá a odkazy sú na mobile malé alebo príliš blízko seba.", "impact": "Ľudia sa ľahko trafia vedľa a otvorí sa im iná stránka, než chceli, čo pôsobí frustrujúco.", "solution": "Zväčšiť tlačidlá a odkazy a dať medzi ne viac miesta."},
+      "cs": {"label": "Malá tlačítka a odkazy na mobilu", "problem": "Tlačítka a odkazy jsou na mobilu malé nebo příliš blízko sebe.", "impact": "Lidé se snadno trefí vedle a otevře se jim jiná stránka, než chtěli, což je frustrující.", "solution": "Zvětšit tlačítka a odkazy a dát mezi ně více místa."},
+      "en": {"label": "Small buttons and links on mobile", "problem": "Buttons and links are small or too close together on phones.", "impact": "People easily tap the wrong one and end up on a page they didn't want, which is frustrating.", "solution": "Make buttons and links larger and add more space between them."}
+    },
+    "mobile.horizontal_scroll": {
+      "sk": {"label": "Stránka na mobile presahuje do strany", "problem": "Na mobile je časť stránky širšia ako obrazovka a obsah sa posúva do strany.", "impact": "Text a tlačidlá môžu byť odrezané a stránka pôsobí rozbito, čo znižuje dôveru.", "solution": "Upraviť prvky, ktoré sú širšie ako obrazovka (obrázky, tabuľky, bloky), aby sa zmestili."},
+      "cs": {"label": "Stránka na mobilu přesahuje do strany", "problem": "Na mobilu je část stránky širší než obrazovka a obsah se posouvá do strany.", "impact": "Text a tlačítka mohou být oříznuté a stránka působí rozbitě, což snižuje důvěru.", "solution": "Upravit prvky, které jsou širší než obrazovka (obrázky, tabulky, bloky), aby se vešly."},
+      "en": {"label": "Page spills sideways on mobile", "problem": "On phones, part of the page is wider than the screen and the content slides sideways.", "impact": "Text and buttons may be cut off and the page looks broken, which reduces trust.", "solution": "Fix the elements that are wider than the screen (images, tables, blocks) so they fit."}
+    },
+    "speed.pagespeed_mobile": {
+      "sk": {"label": "Pomalé načítanie na mobile", "problem": "Web sa na mobile načítava pomaly.", "impact": "Mnohí ľudia na pomalú stránku nečakajú a vrátia sa do výsledkov vyhľadávania. Rýchlosť ovplyvňuje aj poradie vo vyhľadávaní.", "solution": "Zmenšiť obrázky, obmedziť zbytočné skripty a zapnúť ukladanie do vyrovnávacej pamäte (cache)."},
+      "cs": {"label": "Pomalé načítání na mobilu", "problem": "Web se na mobilu načítá pomalu.", "impact": "Mnoho lidí na pomalou stránku nečeká a vrátí se do výsledků vyhledávání. Rychlost ovlivňuje i pořadí ve vyhledávání.", "solution": "Zmenšit obrázky, omezit zbytečné skripty a zapnout ukládání do mezipaměti (cache)."},
+      "en": {"label": "Slow loading on mobile", "problem": "The website loads slowly on phones.", "impact": "Many people won't wait for a slow page and go back to the search results. Speed also affects search rankings.", "solution": "Compress images, cut unnecessary scripts and turn on caching."}
+    },
+    "speed.pagespeed_desktop": {
+      "sk": {"label": "Pomalé načítanie na počítači", "problem": "Web sa pomaly načítava aj na počítači.", "impact": "Pomalá stránka pôsobí zastarano a návštevníci môžu odísť skôr, než si ponuku pozrú.", "solution": "Zmenšiť obrázky, obmedziť zbytočné skripty a zapnúť ukladanie do vyrovnávacej pamäte (cache)."},
+      "cs": {"label": "Pomalé načítání na počítači", "problem": "Web se pomalu načítá i na počítači.", "impact": "Pomalá stránka působí zastarale a návštěvníci mohou odejít dřív, než si nabídku prohlédnou.", "solution": "Zmenšit obrázky, omezit zbytečné skripty a zapnout ukládání do mezipaměti (cache)."},
+      "en": {"label": "Slow loading on desktop", "problem": "The website also loads slowly on computers.", "impact": "A slow page feels outdated and visitors may leave before looking at your offer.", "solution": "Compress images, cut unnecessary scripts and turn on caching."}
+    },
+    "speed.core_web_vitals": {
+      "sk": {"label": "Stránka sa načítava trhane", "problem": "Hlavný obsah sa zobrazuje neskoro, stránka reaguje pomaly alebo počas načítania poskakuje.", "impact": "Návštevník môže kliknúť na niečo iné, než chcel, alebo stratiť trpezlivosť. Google tieto ukazovatele berie do úvahy pri poradí vo výsledkoch.", "solution": "Zrýchliť načítanie hlavného obrázka a písma, vyhradiť miesto pre obrázky a vložený obsah a odľahčiť skripty."},
+      "cs": {"label": "Stránka se načítá trhaně", "problem": "Hlavní obsah se zobrazuje pozdě, stránka reaguje pomalu nebo během načítání poskakuje.", "impact": "Návštěvník může kliknout na něco jiného, než chtěl, nebo ztratit trpělivost. Google tyto ukazatele bere v úvahu při řazení výsledků.", "solution": "Zrychlit načítání hlavního obrázku a písma, vyhradit místo pro obrázky a vložený obsah a odlehčit skripty."},
+      "en": {"label": "Choppy page loading", "problem": "The main content appears late, the page responds slowly or jumps around while loading.", "impact": "Visitors may tap the wrong thing or lose patience. Google takes these signals into account when ranking results.", "solution": "Speed up how the main image and fonts load, reserve space for images and embeds, and slim down scripts."}
+    },
+    "speed.large_images": {
+      "sk": {"label": "Príliš veľké obrázky", "problem": "Niektoré obrázky sú zbytočne veľké a spomaľujú web.", "impact": "Najmä na mobilnom pripojení sa stránka načítava dlhšie a míňa dáta návštevníkov.", "solution": "Zmenšiť obrázky na skutočne potrebnú veľkosť a uložiť ich v modernom formáte (napr. WebP)."},
+      "cs": {"label": "Příliš velké obrázky", "problem": "Některé obrázky jsou zbytečně velké a zpomalují web.", "impact": "Zvlášť na mobilním připojení se stránka načítá déle a spotřebovává data návštěvníků.", "solution": "Zmenšit obrázky na skutečně potřebnou velikost a uložit je v moderním formátu (např. WebP)."},
+      "en": {"label": "Images too large", "problem": "Some images are unnecessarily large and slow the site down.", "impact": "Especially on mobile connections the page takes longer to load and uses up visitors' data.", "solution": "Resize images to the size actually needed and save them in a modern format (e.g. WebP)."}
+    },
+    "speed.page_weight": {
+      "sk": {"label": "Ťažká úvodná stránka", "problem": "Úvodná stránka sťahuje veľké množstvo dát.", "impact": "Na slabšom pripojení sa načítava dlho a návštevníci môžu odísť skôr, než sa zobrazí.", "solution": "Odstrániť nepotrebné skripty, písma a videá a zmenšiť obrázky."},
+      "cs": {"label": "Těžká úvodní stránka", "problem": "Úvodní stránka stahuje velké množství dat.", "impact": "Na slabším připojení se načítá dlouho a návštěvníci mohou odejít dřív, než se zobrazí.", "solution": "Odstranit nepotřebné skripty, písma a videa a zmenšit obrázky."},
+      "en": {"label": "Heavy homepage", "problem": "The homepage downloads a large amount of data.", "impact": "On a weaker connection it takes long to load and visitors may leave before it appears.", "solution": "Remove unneeded scripts, fonts and videos, and compress images."}
+    },
+    "speed.server_response": {
+      "sk": {"label": "Pomalá odozva servera", "problem": "Server odpovedá na otvorenie stránky pomaly.", "impact": "Všetko ostatné na stránke musí čakať, takže web pôsobí pomalo hneď od prvého kliknutia.", "solution": "Zapnúť ukladanie do vyrovnávacej pamäte (cache) alebo zvážiť rýchlejší hosting."},
+      "cs": {"label": "Pomalá odezva serveru", "problem": "Server odpovídá na otevření stránky pomalu.", "impact": "Vše ostatní na stránce musí čekat, takže web působí pomalu hned od prvního kliknutí.", "solution": "Zapnout ukládání do mezipaměti (cache) nebo zvážit rychlejší hosting."},
+      "en": {"label": "Slow server response", "problem": "The server is slow to respond when the page is opened.", "impact": "Everything else on the page has to wait, so the site feels slow from the first click.", "solution": "Enable caching or consider faster hosting."}
+    },
+    "seo.title": {
+      "sk": {"label": "Nevhodný názov stránky", "problem": "Názov stránky, ktorý sa zobrazuje vo výsledkoch vyhľadávania, chýba alebo málo hovorí o firme.", "impact": "Ľudia vo výsledkoch Googlu nemusia spoznať, že ide o vás a čo ponúkate, a kliknú radšej na konkurenciu.", "solution": "Napísať výstižný názov s tým, čo robíte a kde (napr. „Kaderníctvo Trnava – strihy a farbenie“)."},
+      "cs": {"label": "Nevhodný název stránky", "problem": "Název stránky, který se zobrazuje ve výsledcích vyhledávání, chybí nebo o firmě málo vypovídá.", "impact": "Lidé ve výsledcích Googlu nemusí poznat, že jde o vás a co nabízíte, a kliknou raději na konkurenci.", "solution": "Napsat výstižný název s tím, co děláte a kde (např. „Kadeřnictví Brno – střihy a barvení“)."},
+      "en": {"label": "Weak page title", "problem": "The page title shown in search results is missing or says little about the business.", "impact": "In Google results people may not recognise you or what you offer, and click a competitor instead.", "solution": "Write a clear title saying what you do and where (e.g. “Hair salon Trnava – cuts and colouring”)."}
+    },
+    "seo.meta_description": {
+      "sk": {"label": "Chýba popis pre vyhľadávače", "problem": "Web nemá vhodný krátky popis, ktorý Google zobrazuje pod názvom stránky.", "impact": "Google si potom text vyberie sám, často nevhodne, a výsledok môže byť menej lákavý na kliknutie.", "solution": "Doplniť jednu až dve vety o tom, čo ponúkate a prečo si vybrať práve vás."},
+      "cs": {"label": "Chybí popis pro vyhledávače", "problem": "Web nemá vhodný krátký popis, který Google zobrazuje pod názvem stránky.", "impact": "Google si pak text vybere sám, často nevhodně, a výsledek může být méně lákavý na kliknutí.", "solution": "Doplnit jednu až dvě věty o tom, co nabízíte a proč si vybrat právě vás."},
+      "en": {"label": "Missing search description", "problem": "The site lacks a suitable short description that Google shows under the page title.", "impact": "Google then picks a text itself, often a poor one, and the result may be less inviting to click.", "solution": "Add one or two sentences about what you offer and why to choose you."}
+    },
+    "seo.h1": {
+      "sk": {"label": "Chýba jasný hlavný nadpis", "problem": "Stránka nemá jeden jasný hlavný nadpis.", "impact": "Návštevníci ani vyhľadávače z nej hneď nepochopia, o čom stránka je.", "solution": "Pridať jeden hlavný nadpis, ktorý jasne povie, čo firma robí."},
+      "cs": {"label": "Chybí jasný hlavní nadpis", "problem": "Stránka nemá jeden jasný hlavní nadpis.", "impact": "Návštěvníci ani vyhledávače z ní hned nepochopí, o čem stránka je.", "solution": "Přidat jeden hlavní nadpis, který jasně řekne, co firma dělá."},
+      "en": {"label": "No clear main heading", "problem": "The page doesn't have one clear main heading.", "impact": "Neither visitors nor search engines immediately understand what the page is about.", "solution": "Add one main heading that clearly says what the business does."}
+    },
+    "seo.indexable": {
+      "sk": {"label": "Web je skrytý pred vyhľadávačmi", "problem": "Web má nastavenie, ktoré vyhľadávačom zakazuje zobrazovať ho vo výsledkoch.", "impact": "Ľudia vás cez Google nemusia nájsť vôbec, aj keď hľadajú presne vaše služby.", "solution": "Odstrániť zákaz indexovania (často zostane zapnutý omylom po spustení nového webu)."},
+      "cs": {"label": "Web je skrytý před vyhledávači", "problem": "Web má nastavení, které vyhledávačům zakazuje zobrazovat ho ve výsledcích.", "impact": "Lidé vás přes Google nemusí najít vůbec, i když hledají přesně vaše služby.", "solution": "Odstranit zákaz indexování (často zůstane zapnutý omylem po spuštění nového webu)."},
+      "en": {"label": "Hidden from search engines", "problem": "The site has a setting that tells search engines not to show it in results.", "impact": "People may not find you on Google at all, even when searching for exactly your services.", "solution": "Remove the no-index setting (it is often left on by mistake after a new site launches)."}
+    },
+    "seo.sitemap": {
+      "sk": {"label": "Chýba mapa stránok pre vyhľadávače", "problem": "Web nemá mapu stránok (sitemap), podľa ktorej vyhľadávače nájdu všetky podstránky.", "impact": "Niektoré podstránky sa môžu do vyhľadávania dostať neskoro alebo vôbec.", "solution": "Vytvoriť mapu stránok (väčšina redakčných systémov to zvládne automaticky) a odoslať ju do Google Search Console."},
+      "cs": {"label": "Chybí mapa stránek pro vyhledávače", "problem": "Web nemá mapu stránek (sitemap), podle které vyhledávače najdou všechny podstránky.", "impact": "Některé podstránky se mohou do vyhledávání dostat pozdě nebo vůbec.", "solution": "Vytvořit mapu stránek (většina redakčních systémů to zvládne automaticky) a odeslat ji do Google Search Console."},
+      "en": {"label": "No sitemap for search engines", "problem": "The site has no sitemap that helps search engines find all its pages.", "impact": "Some pages may reach search results late or not at all.", "solution": "Create a sitemap (most content systems can do it automatically) and submit it in Google Search Console."}
+    },
+    "seo.open_graph": {
+      "sk": {"label": "Chýba náhľad pri zdieľaní", "problem": "Pri zdieľaní webu na Facebooku či v správach sa nezobrazí pekný náhľad s obrázkom.", "impact": "Odkaz pôsobí neupravene a ľudia naň klikajú menej.", "solution": "Doplniť obrázok, názov a popis pre náhľad pri zdieľaní (Open Graph)."},
+      "cs": {"label": "Chybí náhled při sdílení", "problem": "Při sdílení webu na Facebooku či ve zprávách se nezobrazí pěkný náhled s obrázkem.", "impact": "Odkaz působí neupraveně a lidé na něj klikají méně.", "solution": "Doplnit obrázek, název a popis pro náhled při sdílení (Open Graph)."},
+      "en": {"label": "No share preview", "problem": "When the site is shared on Facebook or in messages, no proper preview with an image appears.", "impact": "The link looks unfinished and people click it less.", "solution": "Add an image, title and description for share previews (Open Graph)."}
+    },
+    "seo.favicon": {
+      "sk": {"label": "Chýba ikonka webu", "problem": "Web nemá vlastnú ikonku, ktorá sa zobrazuje v karte prehliadača a vo výsledkoch vyhľadávania.", "impact": "Web pôsobí menej dôveryhodne a medzi otvorenými kartami sa ťažšie hľadá.", "solution": "Pridať malú ikonku s logom (favicon)."},
+      "cs": {"label": "Chybí ikonka webu", "problem": "Web nemá vlastní ikonku, která se zobrazuje v kartě prohlížeče a ve výsledcích vyhledávání.", "impact": "Web působí méně důvěryhodně a mezi otevřenými kartami se hůř hledá.", "solution": "Přidat malou ikonku s logem (favicon)."},
+      "en": {"label": "No site icon", "problem": "The site has no icon of its own in the browser tab and in search results.", "impact": "The site looks less trustworthy and is harder to spot among open tabs.", "solution": "Add a small icon with your logo (favicon)."}
+    },
+    "seo.structured_data": {
+      "sk": {"label": "Vyhľadávače nepoznajú údaje o firme", "problem": "Web neposiela vyhľadávačom údaje o firme (adresa, otváracie hodiny, odbor) v štruktúrovanej podobe.", "impact": "Google ich potom nemusí správne zobraziť vo výsledkoch a v mapách.", "solution": "Doplniť štruktúrované údaje typu LocalBusiness s adresou, otváracími hodinami a kontaktom."},
+      "cs": {"label": "Vyhledávače neznají údaje o firmě", "problem": "Web neposílá vyhledávačům údaje o firmě (adresa, otevírací doba, obor) ve strukturované podobě.", "impact": "Google je pak nemusí správně zobrazit ve výsledcích a v mapách.", "solution": "Doplnit strukturovaná data typu LocalBusiness s adresou, otevírací dobou a kontaktem."},
+      "en": {"label": "Business details not machine-readable", "problem": "The site doesn't give search engines its business details (address, opening hours, type of business) in a structured form.", "impact": "Google may then not show them correctly in results and on maps.", "solution": "Add LocalBusiness structured data with address, opening hours and contact details."}
+    },
+    "trust.contact": {
+      "sk": {"label": "Kontakt nie je na očiach", "problem": "Na webe sa ťažko hľadá telefón alebo e‑mail.", "impact": "Kto chce objednať alebo sa niečo spýtať, nemusí mať trpezlivosť kontakt hľadať a ozve sa konkurencii.", "solution": "Umiestniť telefón a e‑mail viditeľne do hlavičky alebo pätičky každej stránky.",
+        "warn": {"problem": "Kontaktná stránka obsahuje len formulár, bez telefónu a e‑mailu.", "impact": "Mnohí ľudia radšej zavolajú alebo napíšu priamo; keď nemajú ako, môžu odísť.", "solution": "Doplniť na kontaktnú stránku telefón a e‑mail."}},
+      "cs": {"label": "Kontakt není na očích", "problem": "Na webu se těžko hledá telefon nebo e‑mail.", "impact": "Kdo chce objednat nebo se na něco zeptat, nemusí mít trpělivost kontakt hledat a ozve se konkurenci.", "solution": "Umístit telefon a e‑mail viditelně do hlavičky nebo patičky každé stránky.",
+        "warn": {"problem": "Kontaktní stránka obsahuje jen formulář, bez telefonu a e‑mailu.", "impact": "Mnoho lidí raději zavolá nebo napíše přímo; když nemají jak, mohou odejít.", "solution": "Doplnit na kontaktní stránku telefon a e‑mail."}},
+      "en": {"label": "Contact details hard to find", "problem": "It's hard to find a phone number or e‑mail address on the site.", "impact": "People who want to order or ask something may not bother searching and contact a competitor instead.", "solution": "Show the phone number and e‑mail clearly in the header or footer of every page.",
+        "warn": {"problem": "The contact page only has a form, with no phone number or e‑mail.", "impact": "Many people prefer to call or write directly; when they can't, they may leave.", "solution": "Add a phone number and e‑mail to the contact page."}}
+    },
+    "trust.clickable_phone": {
+      "sk": {"label": "Telefón sa nedá vytočiť ťuknutím", "problem": "Telefónne číslo na webe nie je klikateľné.", "impact": "Na mobile ho ľudia musia odpisovať, čo je nepohodlné, a časť z nich radšej nezavolá.", "solution": "Upraviť číslo na odkaz, ktorý po ťuknutí rovno vytočí hovor."},
+      "cs": {"label": "Telefon nejde vytočit klepnutím", "problem": "Telefonní číslo na webu není klikatelné.", "impact": "Na mobilu ho lidé musí opisovat, což je nepohodlné, a část z nich raději nezavolá.", "solution": "Upravit číslo na odkaz, který po klepnutí rovnou vytočí hovor."},
+      "en": {"label": "Phone number not tap-to-call", "problem": "The phone number on the site isn't clickable.", "impact": "On a phone people have to copy it by hand, which is awkward, and some won't call at all.", "solution": "Turn the number into a link that starts a call when tapped."}
+    },
+    "trust.address_map": {
+      "sk": {"label": "Chýba adresa alebo mapa", "problem": "Na webe chýba mapa alebo adresa, podľa ktorej vás zákazníci nájdu.", "impact": "Ľudia, ktorí chcú prísť osobne, musia adresu hľadať inde, a niektorí to vzdajú.", "solution": "Doplniť adresu a mapu alebo odkaz na navigáciu (Google Maps, Mapy.cz)."},
+      "cs": {"label": "Chybí adresa nebo mapa", "problem": "Na webu chybí mapa nebo adresa, podle které vás zákazníci najdou.", "impact": "Lidé, kteří chtějí přijít osobně, musí adresu hledat jinde, a někteří to vzdají.", "solution": "Doplnit adresu a mapu nebo odkaz na navigaci (Google Maps, Mapy.cz)."},
+      "en": {"label": "No address or map", "problem": "The site is missing a map or address that helps customers find you.", "impact": "People who want to visit have to look up the address elsewhere, and some give up.", "solution": "Add the address with a map or a link to navigation (Google Maps)."}
+    },
+    "trust.footer_year": {
+      "sk": {"label": "Starý rok v pätičke", "problem": "V pätičke webu je uvedený starý rok.", "impact": "Návštevník môže nadobudnúť dojem, že sa o web nikto nestará alebo firma už nefunguje.", "solution": "Aktualizovať rok, ideálne tak, aby sa menil automaticky."},
+      "cs": {"label": "Starý rok v patičce", "problem": "V patičce webu je uvedený starý rok.", "impact": "Návštěvník může nabýt dojmu, že se o web nikdo nestará nebo firma už nefunguje.", "solution": "Aktualizovat rok, ideálně tak, aby se měnil automaticky."},
+      "en": {"label": "Old year in the footer", "problem": "The footer shows an old year.", "impact": "Visitors may get the impression that nobody looks after the site or the business has closed.", "solution": "Update the year, ideally so it changes automatically."}
+    },
+    "trust.social_links": {
+      "sk": {"label": "Nefunkčné odkazy na sociálne siete", "problem": "Ikonky sociálnych sietí nevedú na váš profil (vedú na úvodnú stránku siete alebo na neexistujúcu stránku).", "impact": "Pôsobí to nedokončene a ľudia, ktorí si vás chcú pozrieť, vás nenájdu.", "solution": "Nastaviť odkazy priamo na vaše profily alebo nepoužívané ikonky odstrániť."},
+      "cs": {"label": "Nefunkční odkazy na sociální sítě", "problem": "Ikonky sociálních sítí nevedou na váš profil (vedou na úvodní stránku sítě nebo na neexistující stránku).", "impact": "Působí to nedokončeně a lidé, kteří si vás chtějí prohlédnout, vás nenajdou.", "solution": "Nastavit odkazy přímo na vaše profily nebo nepoužívané ikonky odstranit."},
+      "en": {"label": "Broken social media links", "problem": "The social media icons don't lead to your profile (they go to the network's homepage or to a missing page).", "impact": "It looks unfinished, and people who want to check you out can't find you.", "solution": "Point the links directly to your profiles or remove icons you don't use."}
+    },
+    "trust.cookie_banner": {
+      "sk": {"label": "Chýba súhlas s cookies", "problem": "Web používa sledovacie nástroje (napr. Google Analytics), no nepýta si súhlas návštevníkov.", "impact": "To pravdepodobne nie je v súlade s pravidlami ochrany súkromia v EÚ a môže to viesť k sťažnosti alebo pokute.", "solution": "Pridať lištu so súhlasom s cookies, ktorá spustí sledovanie až po súhlase."},
+      "cs": {"label": "Chybí souhlas s cookies", "problem": "Web používá sledovací nástroje (např. Google Analytics), ale nežádá návštěvníky o souhlas.", "impact": "To pravděpodobně není v souladu s pravidly ochrany soukromí v EU a může to vést ke stížnosti nebo pokutě.", "solution": "Přidat lištu se souhlasem s cookies, která spustí sledování až po souhlasu."},
+      "en": {"label": "No cookie consent", "problem": "The site uses tracking tools (e.g. Google Analytics) without asking visitors for consent.", "impact": "This is likely not in line with EU privacy rules and may lead to a complaint or a fine.", "solution": "Add a cookie consent bar that starts tracking only after the visitor agrees."}
+    },
+    "trust.broken_links": {
+      "sk": {"label": "Nefunkčné odkazy", "problem": "Niektoré odkazy na webe vedú na neexistujúce stránky.", "impact": "Návštevník narazí na chybu, čo pôsobí neudržiavane a môže ho odradiť.", "solution": "Opraviť alebo odstrániť nefunkčné odkazy."},
+      "cs": {"label": "Nefunkční odkazy", "problem": "Některé odkazy na webu vedou na neexistující stránky.", "impact": "Návštěvník narazí na chybu, což působí neudržovaně a může ho odradit.", "solution": "Opravit nebo odstranit nefunkční odkazy."},
+      "en": {"label": "Broken links", "problem": "Some links on the site lead to pages that don't exist.", "impact": "Visitors run into an error, which looks neglected and may put them off.", "solution": "Fix or remove the broken links."}
+    },
+    "tech.cms_version": {
+      "sk": {"label": "Zastaraný redakčný systém", "problem": "Systém, na ktorom web beží, je zastaraný.", "impact": "Staršie verzie nedostávajú bezpečnostné opravy, takže web je zraniteľnejší voči napadnutiu.", "solution": "Aktualizovať systém aj rozšírenia na aktuálnu verziu a nastaviť pravidelné aktualizácie."},
+      "cs": {"label": "Zastaralý redakční systém", "problem": "Systém, na kterém web běží, je zastaralý.", "impact": "Starší verze nedostávají bezpečnostní opravy, takže web je zranitelnější vůči napadení.", "solution": "Aktualizovat systém i rozšíření na aktuální verzi a nastavit pravidelné aktualizace."},
+      "en": {"label": "Outdated content system", "problem": "The system the website runs on is out of date.", "impact": "Older versions don't get security fixes, so the site is more vulnerable to attacks.", "solution": "Update the system and its plugins to the current version and set up regular updates."}
+    },
+    "tech.outdated_libraries": {
+      "sk": {"label": "Zastarané súčasti webu", "problem": "Web používa staré verzie programových knižníc.", "impact": "Môžu obsahovať známe bezpečnostné chyby a spôsobovať problémy v nových prehliadačoch.", "solution": "Aktualizovať knižnice na podporované verzie."},
+      "cs": {"label": "Zastaralé součásti webu", "problem": "Web používá staré verze programových knihoven.", "impact": "Mohou obsahovat známé bezpečnostní chyby a způsobovat problémy v nových prohlížečích.", "solution": "Aktualizovat knihovny na podporované verze."},
+      "en": {"label": "Outdated website components", "problem": "The site uses old versions of software libraries.", "impact": "They may contain known security flaws and cause problems in newer browsers.", "solution": "Update the libraries to supported versions."}
+    },
+    "tech.console_errors": {
+      "sk": {"label": "Chyby pri načítaní stránky", "problem": "Pri načítaní stránky vznikajú technické chyby.", "impact": "Niektoré časti webu (formulár, galéria, menu) nemusia fungovať správne a návštevník to nemusí ani nahlásiť.", "solution": "Nájsť a opraviť chyby v skriptoch webu."},
+      "cs": {"label": "Chyby při načítání stránky", "problem": "Při načítání stránky vznikají technické chyby.", "impact": "Některé části webu (formulář, galerie, menu) nemusí fungovat správně a návštěvník to ani nemusí nahlásit.", "solution": "Najít a opravit chyby ve skriptech webu."},
+      "en": {"label": "Errors while loading", "problem": "Technical errors occur while the page loads.", "impact": "Parts of the site (form, gallery, menu) may not work properly, and visitors rarely report it.", "solution": "Find and fix the errors in the site's scripts."}
+    },
+    "tech.mixed_content": {
+      "sk": {"label": "Nezabezpečený obsah na zabezpečenom webe", "problem": "Časť obsahu sa na zabezpečenom webe načítava nezabezpečene.", "impact": "Prehliadač môže takýto obsah zablokovať alebo zobraziť upozornenie, takže časť stránky nemusí fungovať.", "solution": "Upraviť adresy obrázkov a skriptov tak, aby sa načítavali cez https."},
+      "cs": {"label": "Nezabezpečený obsah na zabezpečeném webu", "problem": "Část obsahu se na zabezpečeném webu načítá nezabezpečeně.", "impact": "Prohlížeč může takový obsah zablokovat nebo zobrazit upozornění, takže část stránky nemusí fungovat.", "solution": "Upravit adresy obrázků a skriptů tak, aby se načítaly přes https."},
+      "en": {"label": "Insecure content on a secure site", "problem": "Part of the content on the secure site loads insecurely.", "impact": "The browser may block it or show a warning, so part of the page may not work.", "solution": "Change image and script addresses so they load over https."}
+    },
+    "a11y.contrast": {
+      "sk": {"label": "Slabo čitateľný text", "problem": "Niektoré texty majú farbu príliš podobnú pozadiu.", "impact": "Ľudia so slabším zrakom alebo na mobile na slnku ich ťažko prečítajú.", "solution": "Upraviť farby textu alebo pozadia, aby bol text výraznejší."},
+      "cs": {"label": "Špatně čitelný text", "problem": "Některé texty mají barvu příliš podobnou pozadí.", "impact": "Lidé se slabším zrakem nebo na mobilu na slunci je těžko přečtou.", "solution": "Upravit barvy textu nebo pozadí, aby byl text výraznější."},
+      "en": {"label": "Low-contrast text", "problem": "Some text is too close in colour to its background.", "impact": "People with weaker eyesight, or on a phone in sunlight, struggle to read it.", "solution": "Adjust text or background colours so the text stands out."}
+    },
+    "a11y.img_alt": {
+      "sk": {"label": "Obrázky bez popisu", "problem": "Obrázky na webe nemajú textový popis.", "impact": "Nevidiaci návštevníci sa nedozvedia, čo je na nich, a vyhľadávače ich horšie zaradia, napríklad vo vyhľadávaní obrázkov.", "solution": "Doplniť ku každému dôležitému obrázku krátky popis (alt text)."},
+      "cs": {"label": "Obrázky bez popisu", "problem": "Obrázky na webu nemají textový popis.", "impact": "Nevidomí návštěvníci se nedozví, co na nich je, a vyhledávače je hůř zařadí, například ve vyhledávání obrázků.", "solution": "Doplnit ke každému důležitému obrázku krátký popis (alt text)."},
+      "en": {"label": "Images without descriptions", "problem": "Images on the site have no text description.", "impact": "Blind visitors can't tell what they show, and search engines index them less well, for example in image search.", "solution": "Add a short description (alt text) to every meaningful image."}
+    },
+    "a11y.form_labels": {
+      "sk": {"label": "Formulár bez popisov polí", "problem": "Polia vo formulári nemajú trvalé popisy, ktoré by zostali viditeľné aj počas písania.", "impact": "Ľudia môžu zabudnúť, čo majú do poľa napísať, a čítačky obrazovky pole nevedia pomenovať. Formulár potom niektorí neodošlú.", "solution": "Pridať ku každému poľu viditeľný popis."},
+      "cs": {"label": "Formulář bez popisů polí", "problem": "Pole ve formuláři nemají trvalé popisy, které by zůstaly viditelné i během psaní.", "impact": "Lidé mohou zapomenout, co mají do pole napsat, a čtečky obrazovky pole neumí pojmenovat. Formulář pak někteří neodešlou.", "solution": "Přidat ke každému poli viditelný popis."},
+      "en": {"label": "Form fields without labels", "problem": "Form fields have no lasting labels that stay visible while typing.", "impact": "People may forget what to enter, and screen readers can't name the fields, so some visitors won't send the form.", "solution": "Add a visible label to every field."}
+    },
+    "a11y.control_names": {
+      "sk": {"label": "Ikonky bez popisu", "problem": "Niektoré odkazy a tlačidlá tvorí len ikonka bez textového popisu.", "impact": "Čítačky obrazovky ich nevedia pomenovať, takže nevidiaci návštevníci nevedia, kam vedú.", "solution": "Doplniť k ikonkám skrytý textový popis."},
+      "cs": {"label": "Ikonky bez popisu", "problem": "Některé odkazy a tlačítka tvoří jen ikonka bez textového popisu.", "impact": "Čtečky obrazovky je neumí pojmenovat, takže nevidomí návštěvníci nevědí, kam vedou.", "solution": "Doplnit k ikonkám skrytý textový popis."},
+      "en": {"label": "Icon buttons without names", "problem": "Some links and buttons consist of an icon only, without a text label.", "impact": "Screen readers can't name them, so blind visitors don't know where they lead.", "solution": "Add a hidden text label to icon-only links and buttons."}
+    },
+    "a11y.lang": {
+      "sk": {"label": "Nie je určený jazyk stránky", "problem": "Stránka neoznačuje, v akom jazyku je napísaná.", "impact": "Čítačky obrazovky ju môžu čítať s nesprávnou výslovnosťou a prehliadač môže zbytočne ponúkať preklad.", "solution": "Doplniť označenie jazyka stránky."},
+      "cs": {"label": "Není určen jazyk stránky", "problem": "Stránka neoznačuje, v jakém jazyce je napsaná.", "impact": "Čtečky obrazovky ji mohou číst se špatnou výslovností a prohlížeč může zbytečně nabízet překlad.", "solution": "Doplnit označení jazyka stránky."},
+      "en": {"label": "Page language not set", "problem": "The page doesn't declare which language it is written in.", "impact": "Screen readers may read it with the wrong pronunciation, and browsers may needlessly offer to translate it.", "solution": "Declare the page language."}
+    },
+    "design.fixed_width": {
+      "sk": {"label": "Pevná šírka stránky", "problem": "Stránka má pevnú šírku a neprispôsobí sa menšiemu oknu ani tabletu.", "impact": "Na menších obrazovkách sa obsah oreže alebo treba posúvať do strany, čo pôsobí zastarano.", "solution": "Prerobiť rozloženie na pružné, ktoré sa prispôsobí akejkoľvek šírke."},
+      "cs": {"label": "Pevná šířka stránky", "problem": "Stránka má pevnou šířku a nepřizpůsobí se menšímu oknu ani tabletu.", "impact": "Na menších obrazovkách se obsah ořízne nebo je nutné posouvat do strany, což působí zastarale.", "solution": "Předělat rozvržení na pružné, které se přizpůsobí jakékoli šířce."},
+      "en": {"label": "Fixed-width layout", "problem": "The page has a fixed width and doesn't adapt to smaller windows or tablets.", "impact": "On smaller screens content gets cut off or has to be scrolled sideways, which looks dated.", "solution": "Rebuild the layout to be flexible so it fits any width."}
+    },
+    "design.table_layout": {
+      "sk": {"label": "Rozloženie pomocou tabuliek", "problem": "Stránka je poskladaná pomocou tabuliek, ako sa weby robili pred mnohými rokmi.", "impact": "Takéto rozloženie sa zle prispôsobuje mobilom a ťažko sa upravuje.", "solution": "Prerobiť stránku na moderné rozloženie."},
+      "cs": {"label": "Rozvržení pomocí tabulek", "problem": "Stránka je poskládaná pomocí tabulek, jak se weby dělaly před mnoha lety.", "impact": "Takové rozvržení se špatně přizpůsobuje mobilům a obtížně se upravuje.", "solution": "Předělat stránku na moderní rozvržení."},
+      "en": {"label": "Table-based layout", "problem": "The page is built from tables, the way websites were made many years ago.", "impact": "Such a layout adapts poorly to phones and is hard to change.", "solution": "Rebuild the page with a modern layout."}
+    },
+    "design.small_text": {
+      "sk": {"label": "Drobné písmo", "problem": "Veľká časť textu na webe je drobná aj na počítači.", "impact": "Text sa číta namáhavo a stránka pôsobí zastarano.", "solution": "Zväčšiť základnú veľkosť písma a riadkovanie."},
+      "cs": {"label": "Drobné písmo", "problem": "Velká část textu na webu je drobná i na počítači.", "impact": "Text se čte namáhavě a stránka působí zastarale.", "solution": "Zvětšit základní velikost písma a řádkování."},
+      "en": {"label": "Small text", "problem": "Much of the text on the site is small even on a computer.", "impact": "It is tiring to read and makes the site look dated.", "solution": "Increase the base font size and line spacing."}
+    },
+    "design.font_count": {
+      "sk": {"label": "Priveľa druhov písma", "problem": "Web používa veľa rôznych druhov písma.", "impact": "Stránka pôsobí nejednotne a menej profesionálne.", "solution": "Zjednotiť písmo na jednu až dve rodiny."},
+      "cs": {"label": "Příliš mnoho druhů písma", "problem": "Web používá mnoho různých druhů písma.", "impact": "Stránka působí nejednotně a méně profesionálně.", "solution": "Sjednotit písmo na jednu až dvě rodiny."},
+      "en": {"label": "Too many fonts", "problem": "The site uses many different typefaces.", "impact": "The page looks inconsistent and less professional.", "solution": "Reduce the fonts to one or two families."}
+    },
+    "design.legacy_markup": {
+      "sk": {"label": "Zastarané technológie", "problem": "Web obsahuje prvky z obdobia spred mnohých rokov (napríklad pohyblivý text alebo Flash).", "impact": "Moderné prehliadače ich často nezobrazia správne a web pôsobí zastarano.", "solution": "Nahradiť staré prvky moderným riešením, prípadne zvážiť nový web."},
+      "cs": {"label": "Zastaralé technologie", "problem": "Web obsahuje prvky z doby před mnoha lety (například pohyblivý text nebo Flash).", "impact": "Moderní prohlížeče je často nezobrazí správně a web působí zastarale.", "solution": "Nahradit staré prvky moderním řešením, případně zvážit nový web."},
+      "en": {"label": "Outdated technology", "problem": "The site contains elements from many years ago (such as scrolling text or Flash).", "impact": "Modern browsers often don't display them properly, and the site looks dated.", "solution": "Replace the old elements with modern ones, or consider a new website."}
+    },
+    "design_ai.review": {
+      "sk": {"label": "Celkový dojem z dizajnu", "problem": "Vzhľad webu pôsobí zastarano alebo neprehľadne.", "impact": "Prvý dojem vzniká v priebehu pár sekúnd; keď web nepôsobí dôveryhodne, ľudia často prejdú ku konkurencii.", "solution": "Osviežiť vizuálnu stránku webu alebo zvážiť nový web."},
+      "cs": {"label": "Celkový dojem z designu", "problem": "Vzhled webu působí zastarale nebo nepřehledně.", "impact": "První dojem vzniká během několika sekund; když web nepůsobí důvěryhodně, lidé často přejdou ke konkurenci.", "solution": "Osvěžit vizuální stránku webu nebo zvážit nový web."},
+      "en": {"label": "Overall design impression", "problem": "The site looks dated or cluttered.", "impact": "First impressions form within seconds; when a site doesn't look trustworthy, people often move on to a competitor.", "solution": "Refresh the site's visual design or consider a new website."}
+    }
+  }
+}

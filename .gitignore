@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Node
+node_modules/
+.vite/
+
+# Secrets – API keys must never be committed
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+config/local/
+
+# Scan output
+shots/
+screenshots/
+results*.json
+fixtures-out/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

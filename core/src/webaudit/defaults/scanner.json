@@ -1,0 +1,81 @@
+{
+  "_comment": "Scanner behaviour and check thresholds. Edit freely; keys you leave out keep their default.",
+  "user_agent_token": "WebAuditBot",
+  "user_agent_info_url": "https://example.com/webauditbot",
+  "accept_language": "sk,cs;q=0.9,en;q=0.8",
+  "politeness": {
+    "min_delay_between_requests_s": 0.75,
+    "max_crawl_delay_s": 10,
+    "robots_5xx_policy": "disallow"
+  },
+  "timeouts": {
+    "site_total_s": 150,
+    "request_s": 15,
+    "navigation_s": 30,
+    "pagespeed_s": 70
+  },
+  "limits": {
+    "max_html_bytes": 5000000,
+    "max_redirects": 8,
+    "max_internal_links_checked": 15,
+    "max_external_links_checked": 8,
+    "max_images_checked_without_browser": 12,
+    "max_dom_elements_measured": 1500
+  },
+  "browser": {
+    "enabled": true,
+    "desktop_viewport": {"width": 1366, "height": 900},
+    "mobile_viewport": {"width": 390, "height": 844},
+    "narrow_desktop_width": 700,
+    "network_idle_wait_ms": 3000,
+    "block_media": true
+  },
+  "thresholds": {
+    "ssl_expiry_warn_days": 14,
+    "title_min_chars": 10,
+    "title_max_chars": 70,
+    "meta_description_min_chars": 50,
+    "meta_description_max_chars": 170,
+    "generic_titles": ["home", "domov", "úvod", "uvod", "úvodní stránka", "hlavná stránka", "untitled", "nová stránka", "new page", "index", "welcome", "vitajte", "vítejte"],
+    "mobile_min_font_px": 12,
+    "mobile_legible_ratio_pass": 0.9,
+    "mobile_legible_ratio_fail": 0.6,
+    "tap_target_min_px": 44,
+    "tap_target_fail_ratio_warn": 0.05,
+    "tap_target_fail_ratio_fail": 0.15,
+    "horizontal_scroll_tolerance_px": 8,
+    "pagespeed_pass": 90,
+    "pagespeed_fail_below": 50,
+    "large_image_bytes": 300000,
+    "huge_image_bytes": 1000000,
+    "oversized_image_ratio": 2.5,
+    "oversized_image_min_px": 1200,
+    "page_weight_warn_bytes": 2500000,
+    "page_weight_fail_bytes": 5000000,
+    "server_response_warn_s": 0.8,
+    "server_response_fail_s": 1.8,
+    "cwv": {
+      "lcp_good_ms": 2500, "lcp_poor_ms": 4000,
+      "inp_good_ms": 200, "inp_poor_ms": 500,
+      "cls_good": 0.1, "cls_poor": 0.25,
+      "tbt_good_ms": 200, "tbt_poor_ms": 600
+    },
+    "footer_year_max_age": 1,
+    "broken_links_warn": 1,
+    "broken_links_fail": 2,
+    "console_errors_warn": 1,
+    "console_errors_fail": 3,
+    "contrast_min_checked": 5,
+    "contrast_fail_ratio_warn": 0.05,
+    "contrast_fail_ratio_fail": 0.15,
+    "img_alt_missing_ratio_fail": 0.3,
+    "control_names_missing_warn": 1,
+    "control_names_missing_fail": 3,
+    "desktop_small_font_px": 13,
+    "desktop_small_text_ratio_warn": 0.25,
+    "desktop_small_text_ratio_fail": 0.5,
+    "font_families_warn": 4,
+    "font_families_fail": 6,
+    "fixed_width_tolerance_px": 40
+  }
+}

@@ -1,0 +1,708 @@
+{
+  "_comment": "Detection patterns. Regexes are case-insensitive and run against HTML, header values or resource URLs. Review the CMS version limits about twice a year.",
+  "cms": [
+    {
+      "name": "WordPress",
+      "html": [
+        "/wp-content/",
+        "/wp-includes/"
+      ],
+      "generator": "wordpress",
+      "version_regex": [
+        "<meta[^>]+generator[^>]+WordPress (\\d+\\.\\d+(?:\\.\\d+)?)",
+        "wp-(?:emoji-release|embed)\\.min\\.js\\?ver=(\\d+\\.\\d+(?:\\.\\d+)?)"
+      ],
+      "warn_below": "6.7",
+      "fail_below": "6.0"
+    },
+    {
+      "name": "Joomla",
+      "html": [
+        "/media/jui/",
+        "/media/system/js/",
+        "/components/com_"
+      ],
+      "generator": "joomla",
+      "version_regex": [
+        "Joomla! (\\d+\\.\\d+(?:\\.\\d+)?)"
+      ],
+      "warn_below": "5.0",
+      "fail_below": "4.0"
+    },
+    {
+      "name": "Drupal",
+      "html": [
+        "/sites/default/files/",
+        "drupal-settings-json",
+        "Drupal.settings"
+      ],
+      "generator": "drupal",
+      "headers": {
+        "x-generator": "drupal"
+      },
+      "version_regex": [
+        "Drupal (\\d+(?:\\.\\d+)?)"
+      ],
+      "warn_below": "10.3",
+      "fail_below": "10"
+    },
+    {
+      "name": "Wix",
+      "html": [
+        "static.wixstatic.com",
+        "wix-bolt",
+        "_wixCIDX"
+      ],
+      "generator": "wix.com",
+      "headers": {
+        "x-wix-request-id": ""
+      }
+    },
+    {
+      "name": "Squarespace",
+      "html": [
+        "static1.squarespace.com",
+        "squarespace-cdn.com"
+      ],
+      "generator": "squarespace"
+    },
+    {
+      "name": "Webnode",
+      "html": [
+        "webnode.page",
+        "d1-template.webnode",
+        "webnode.sk",
+        "webnode.cz",
+        "wnd.webnode"
+      ],
+      "generator": "webnode"
+    },
+    {
+      "name": "Shoptet",
+      "html": [
+        "cdn.myshoptet.com",
+        "shoptet.cz/",
+        "data-shoptet"
+      ],
+      "generator": "shoptet"
+    },
+    {
+      "name": "Shopify",
+      "html": [
+        "cdn.shopify.com",
+        "Shopify.theme"
+      ],
+      "headers": {
+        "x-shopid": ""
+      }
+    },
+    {
+      "name": "PrestaShop",
+      "html": [
+        "/modules/ps_",
+        "prestashop = {",
+        "var prestashop"
+      ],
+      "generator": "prestashop",
+      "version_regex": [
+        "PrestaShop (\\d+\\.\\d+(?:\\.\\d+)?)"
+      ]
+    },
+    {
+      "name": "Webflow",
+      "html": [
+        "data-wf-page",
+        "assets.website-files.com",
+        "website-files.com"
+      ],
+      "generator": "webflow"
+    },
+    {
+      "name": "Jimdo",
+      "html": [
+        "jimdo.com",
+        "jimstatic.com",
+        "jimdosite.com"
+      ],
+      "generator": "jimdo"
+    },
+    {
+      "name": "Weebly",
+      "html": [
+        "editmysite.com",
+        "weebly.com"
+      ],
+      "generator": "weebly"
+    },
+    {
+      "name": "GoDaddy Website Builder",
+      "html": [
+        "img1.wsimg.com",
+        "godaddy-website-builder"
+      ],
+      "generator": "godaddy"
+    },
+    {
+      "name": "Duda",
+      "html": [
+        "irp.cdn-website.com",
+        "dmAlbum",
+        "duda"
+      ],
+      "generator": "duda"
+    },
+    {
+      "name": "Hostinger Website Builder",
+      "html": [
+        "zyrosite.com",
+        "zyro.com"
+      ],
+      "generator": "zyro"
+    },
+    {
+      "name": "Google Sites",
+      "html": [
+        "sites.google.com/view",
+        "gstatic.com/atari/"
+      ],
+      "generator": "google sites"
+    },
+    {
+      "name": "Blogger",
+      "html": [
+        "blogger.com/static",
+        "blogblog.com"
+      ],
+      "generator": "blogger"
+    },
+    {
+      "name": "TYPO3",
+      "html": [
+        "/typo3conf/",
+        "/typo3temp/"
+      ],
+      "generator": "typo3",
+      "version_regex": [
+        "TYPO3 CMS (\\d+\\.\\d+)"
+      ]
+    },
+    {
+      "name": "Ghost",
+      "html": [
+        "ghost-portal",
+        "/ghost/api/"
+      ],
+      "generator": "ghost",
+      "version_regex": [
+        "Ghost (\\d+\\.\\d+)"
+      ]
+    },
+    {
+      "name": "Magento",
+      "html": [
+        "Mage.Cookies",
+        "/static/version",
+        "mage/cookies"
+      ],
+      "generator": "magento"
+    },
+    {
+      "name": "OpenCart",
+      "html": [
+        "catalog/view/theme",
+        "route=common/home"
+      ],
+      "generator": "opencart"
+    },
+    {
+      "name": "Contao",
+      "html": [
+        "/assets/contao/",
+        "contao-"
+      ],
+      "generator": "contao"
+    },
+    {
+      "name": "1C-Bitrix",
+      "html": [
+        "/bitrix/js/",
+        "/bitrix/templates/"
+      ],
+      "generator": "bitrix"
+    },
+    {
+      "name": "Next.js",
+      "html": [
+        "/_next/static/",
+        "__NEXT_DATA__"
+      ]
+    },
+    {
+      "name": "Nuxt",
+      "html": [
+        "/_nuxt/",
+        "__NUXT__"
+      ]
+    },
+    {
+      "name": "Gatsby",
+      "html": [
+        "___gatsby"
+      ],
+      "generator": "gatsby"
+    }
+  ],
+  "libraries": [
+    {
+      "name": "jQuery",
+      "url_regex": [
+        "jquery[.-](\\d+\\.\\d+(?:\\.\\d+)?)(?:\\.slim)?(?:\\.min)?\\.js",
+        "/jquery/(\\d+\\.\\d+\\.\\d+)/",
+        "jquery@(\\d+\\.\\d+\\.\\d+)",
+        "jquery(?:\\.min)?\\.js\\?ver=(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "runtime": "jquery",
+      "fail_below": "3.5.0",
+      "warn_below": "3.7.0"
+    },
+    {
+      "name": "jQuery UI",
+      "url_regex": [
+        "jquery-ui[.-](\\d+\\.\\d+\\.\\d+)",
+        "/jqueryui/(\\d+\\.\\d+\\.\\d+)/",
+        "jquery-ui(?:\\.min)?\\.js\\?ver=(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "runtime": "jqueryui",
+      "fail_below": "1.13.0"
+    },
+    {
+      "name": "jQuery Migrate",
+      "url_regex": [
+        "jquery-migrate[.-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "warn_below": "3.0.0"
+    },
+    {
+      "name": "Bootstrap",
+      "url_regex": [
+        "bootstrap[.-](\\d+\\.\\d+\\.\\d+)(?:\\.bundle)?(?:\\.min)?\\.(?:js|css)",
+        "/bootstrap/(\\d+\\.\\d+\\.\\d+)/",
+        "bootstrap@(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "runtime": "bootstrap",
+      "fail_below": "3.4.1",
+      "warn_below": "4.0.0"
+    },
+    {
+      "name": "AngularJS",
+      "url_regex": [
+        "angular[.-](1\\.\\d+\\.\\d+)(?:\\.min)?\\.js",
+        "/angular\\.js/(1\\.\\d+\\.\\d+)/",
+        "angular@(1\\.\\d+\\.\\d+)"
+      ],
+      "runtime": "angularjs",
+      "fail_below": "2.0.0"
+    },
+    {
+      "name": "Lodash",
+      "url_regex": [
+        "lodash[.-](\\d+\\.\\d+\\.\\d+)",
+        "/lodash\\.js/(\\d+\\.\\d+\\.\\d+)/",
+        "lodash@(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "runtime": "lodash",
+      "fail_below": "4.17.21"
+    },
+    {
+      "name": "Moment.js",
+      "url_regex": [
+        "moment[.-](\\d+\\.\\d+\\.\\d+)",
+        "/moment\\.js/(\\d+\\.\\d+\\.\\d+)/",
+        "moment@(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "runtime": "moment",
+      "fail_below": "2.29.4",
+      "warn_below": "99.0.0"
+    },
+    {
+      "name": "Vue.js",
+      "url_regex": [
+        "vue@(2\\.\\d+\\.\\d+)",
+        "/vue/(2\\.\\d+\\.\\d+)/"
+      ],
+      "runtime": "vue",
+      "warn_below": "3.0.0"
+    },
+    {
+      "name": "MooTools",
+      "url_regex": [
+        "mootools[.-]?(?:core)?[.-]?(\\d+\\.\\d+(?:\\.\\d+)?)"
+      ],
+      "runtime": "mootools",
+      "fail_below": "99.0.0"
+    },
+    {
+      "name": "Prototype",
+      "url_regex": [
+        "prototype[.-](\\d+\\.\\d+\\.\\d+)\\.js"
+      ],
+      "runtime": "prototype",
+      "fail_below": "99.0.0"
+    },
+    {
+      "name": "SWFObject (Flash)",
+      "url_regex": [
+        "swfobject"
+      ],
+      "fail_below": "99.0.0"
+    }
+  ],
+  "trackers": [
+    "google-analytics.com",
+    "googletagmanager.com",
+    "gtag/js",
+    "connect.facebook.net",
+    "fbevents.js",
+    "static.hotjar.com",
+    "clarity.ms",
+    "analytics.tiktok.com",
+    "snap.licdn.com",
+    "px.ads.linkedin.com",
+    "mc.yandex.ru",
+    "googleadservices.com",
+    "doubleclick.net",
+    "ssp.seznam.cz",
+    "c.seznam.cz/js/rc.js",
+    "matomo.js",
+    "piwik.js",
+    "smartlook",
+    "leady.com",
+    "sklik"
+  ],
+  "consent_managers": [
+    "cookiebot",
+    "consent.cookiebot",
+    "onetrust",
+    "cookielaw.org",
+    "cookieyes",
+    "cdn-cookieyes.com",
+    "complianz",
+    "cookie-law-info",
+    "cookie-notice",
+    "cookieconsent",
+    "klaro",
+    "iubenda",
+    "didomi",
+    "usercentrics",
+    "termly",
+    "cookie-script.com",
+    "tarteaucitron",
+    "osano",
+    "quantcast",
+    "cookiefirst",
+    "consentmanager",
+    "borlabs-cookie",
+    "cookieinformation",
+    "cmp.seznam.cz",
+    "gdpr-cookie-compliance",
+    "moove_gdpr",
+    "real-cookie-banner",
+    "cookiehub",
+    "shoptet-cookies",
+    "cookie_bar",
+    "cookies-eu-banner"
+  ],
+  "social": {
+    "facebook": [
+      "facebook.com",
+      "fb.com",
+      "fb.me"
+    ],
+    "instagram": [
+      "instagram.com"
+    ],
+    "linkedin": [
+      "linkedin.com"
+    ],
+    "youtube": [
+      "youtube.com",
+      "youtu.be"
+    ],
+    "tiktok": [
+      "tiktok.com"
+    ],
+    "x": [
+      "twitter.com",
+      "x.com"
+    ],
+    "pinterest": [
+      "pinterest.com"
+    ]
+  },
+  "social_share_patterns": [
+    "sharer",
+    "share.php",
+    "/intent/",
+    "/share?",
+    "sharearticle",
+    "/plugins/",
+    "dialog/feed",
+    "pin/create"
+  ],
+  "map_patterns": [
+    "google.com/maps",
+    "maps.google.",
+    "goo.gl/maps",
+    "maps.app.goo.gl",
+    "mapy.cz",
+    "mapy.com",
+    "api.mapy",
+    "openstreetmap.org",
+    "waze.com",
+    "bing.com/maps",
+    "here.com",
+    "leaflet-container",
+    "gm-style",
+    "mapboxgl-map"
+  ],
+  "contact_link_keywords": [
+    "kontakt",
+    "contact",
+    "kontakty",
+    "napíšte nám",
+    "napiste nam",
+    "napište nám",
+    "spojte sa",
+    "ozvite sa",
+    "get in touch"
+  ],
+  "phone_context_keywords": [
+    "tel",
+    "telefón",
+    "telefon",
+    "mobil",
+    "phone",
+    "volajte",
+    "zavolajte",
+    "zavolejte",
+    "call",
+    "☎",
+    "📞"
+  ],
+  "local_business_types": [
+    "LocalBusiness",
+    "AnimalShelter",
+    "ArchiveOrganization",
+    "AutomotiveBusiness",
+    "AutoBodyShop",
+    "AutoDealer",
+    "AutoPartsStore",
+    "AutoRental",
+    "AutoRepair",
+    "AutoWash",
+    "GasStation",
+    "MotorcycleDealer",
+    "MotorcycleRepair",
+    "ChildCare",
+    "Dentist",
+    "DryCleaningOrLaundry",
+    "EmergencyService",
+    "EmploymentAgency",
+    "EntertainmentBusiness",
+    "FinancialService",
+    "AccountingService",
+    "InsuranceAgency",
+    "FoodEstablishment",
+    "Bakery",
+    "BarOrPub",
+    "Brewery",
+    "CafeOrCoffeeShop",
+    "Distillery",
+    "FastFoodRestaurant",
+    "IceCreamShop",
+    "Restaurant",
+    "Winery",
+    "GovernmentOffice",
+    "HealthAndBeautyBusiness",
+    "BeautySalon",
+    "DaySpa",
+    "HairSalon",
+    "HealthClub",
+    "NailSalon",
+    "TattooParlor",
+    "HomeAndConstructionBusiness",
+    "Electrician",
+    "GeneralContractor",
+    "HVACBusiness",
+    "HousePainter",
+    "Locksmith",
+    "MovingCompany",
+    "Plumber",
+    "RoofingContractor",
+    "InternetCafe",
+    "LegalService",
+    "Attorney",
+    "Notary",
+    "Library",
+    "LodgingBusiness",
+    "BedAndBreakfast",
+    "Campground",
+    "Hostel",
+    "Hotel",
+    "Motel",
+    "Resort",
+    "MedicalBusiness",
+    "MedicalClinic",
+    "Optician",
+    "Pharmacy",
+    "Physician",
+    "Physiotherapy",
+    "ProfessionalService",
+    "RadioStation",
+    "RealEstateAgent",
+    "RecyclingCenter",
+    "SelfStorage",
+    "ShoppingCenter",
+    "SportsActivityLocation",
+    "ExerciseGym",
+    "TennisComplex",
+    "Store",
+    "BikeStore",
+    "BookStore",
+    "ClothingStore",
+    "ComputerStore",
+    "ElectronicsStore",
+    "Florist",
+    "FurnitureStore",
+    "GardenStore",
+    "GroceryStore",
+    "HardwareStore",
+    "HobbyShop",
+    "HomeGoodsStore",
+    "JewelryStore",
+    "LiquorStore",
+    "MensClothingStore",
+    "MobilePhoneStore",
+    "MusicStore",
+    "OfficeEquipmentStore",
+    "OutletStore",
+    "PawnShop",
+    "PetStore",
+    "ShoeStore",
+    "SportingGoodsStore",
+    "TireShop",
+    "ToyStore",
+    "WholesaleStore",
+    "TelevisionStation",
+    "TouristInformationCenter",
+    "TravelAgency",
+    "VeterinaryCare"
+  ],
+  "icon_fonts": [
+    "fontawesome",
+    "font awesome",
+    "fa-solid",
+    "fa-brands",
+    "fa-regular",
+    "icomoon",
+    "dashicons",
+    "material icons",
+    "material symbols",
+    "glyphicons",
+    "eicons",
+    "elementor-icons",
+    "themify",
+    "ionicons",
+    "simple-line-icons",
+    "linearicons",
+    "et-modules",
+    "etmodules",
+    "fontello",
+    "feather",
+    "remixicon",
+    "bootstrap-icons",
+    "la-solid",
+    "line awesome",
+    "genericons",
+    "wpzoom"
+  ],
+  "legacy_tags": [
+    "font",
+    "center",
+    "marquee",
+    "blink",
+    "frameset",
+    "frame",
+    "applet",
+    "bgsound"
+  ],
+  "protection": {
+    "cloudflare": {
+      "headers": [
+        "cf-ray",
+        "cf-mitigated",
+        "cf-chl-bypass"
+      ],
+      "server": "cloudflare",
+      "body": [
+        "challenge-platform",
+        "cf-browser-verification",
+        "cf_chl_opt",
+        "<title>just a moment...</title>",
+        "attention required! | cloudflare",
+        "checking your browser before accessing",
+        "cf-error-details",
+        "enable javascript and cookies to continue"
+      ]
+    },
+    "sucuri": {
+      "headers": [
+        "x-sucuri-id",
+        "x-sucuri-block"
+      ],
+      "server": "sucuri",
+      "body": [
+        "sucuri website firewall",
+        "access denied - sucuri"
+      ]
+    },
+    "imperva": {
+      "headers": [
+        "x-iinfo",
+        "x-cdn: imperva"
+      ],
+      "server": "",
+      "body": [
+        "_incapsula_resource",
+        "incapsula incident id"
+      ]
+    },
+    "datadome": {
+      "headers": [
+        "x-datadome",
+        "x-dd-b"
+      ],
+      "server": "",
+      "body": [
+        "captcha-delivery.com",
+        "geo.captcha-delivery"
+      ]
+    },
+    "akamai": {
+      "headers": [
+        "x-akamai-transformed"
+      ],
+      "server": "akamaighost",
+      "body": [
+        "reference&#32;&#35;"
+      ]
+    },
+    "ddos-guard": {
+      "headers": [],
+      "server": "ddos-guard",
+      "body": [
+        "ddos-guard"
+      ]
+    }
+  }
+}
