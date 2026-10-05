@@ -12,7 +12,7 @@ from urllib.parse import urljoin, urlsplit
 from bs4 import BeautifulSoup
 
 from ..context import ScanContext
-from ..dom import anchors, class_and_id, normalize_link, same_site, visible_text
+from ..dom import anchors, class_and_id, css_path, normalize_link, same_site, visible_text
 from ..models import Area, Status
 from . import check, na, plural, result
 
@@ -241,11 +241,23 @@ def broken_links(ctx: ScanContext):
         status = Status.FAIL
     elif len(broken) >= ctx.t("broken_links_warn"):
         status = Status.WARN
+    linked_from: dict[str, str] = {}
+    for a in anchors(ctx.dom):  # rendered DOM when available, so selectors match the browser
+        link = normalize_link(a["href"], ctx.final_url)
+        if link in broken and link not in linked_from:
+            linked_from[link] = css_path(a)
+
+    def describe(url: str) -> str:
+        status_code, error = checked[url]
+        outcome = f"HTTP {status_code}" if status_code is not None else (error or "no answer")
+        where = f" (linked from {linked_from[url]})" if url in linked_from else ""
+        return f"{url} → {outcome}{where}"
+
     return result(
         "trust.broken_links",
         A,
         status,
         f"{len(broken)} of {plural(len(checked), 'checked link')} broken",
         value={"broken": len(broken), "checked": len(checked)},
-        evidence=[urlsplit(u).path or u for u in broken],
+        evidence=[describe(u) for u in broken],
     )

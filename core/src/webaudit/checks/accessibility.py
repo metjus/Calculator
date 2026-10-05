@@ -3,7 +3,9 @@ from __future__ import annotations
 from bs4 import Tag
 
 from ..context import ScanContext
+from ..dom import css_path
 from ..models import Area, Status
+from ..redact import redact_text
 from . import check, grade, na, plural, result
 
 A = Area.ACCESSIBILITY
@@ -45,7 +47,7 @@ def img_alt(ctx: ScanContext):
         return na("a11y.img_alt", A, "No images")
     missing = [img for img in images if img.get("alt") is None]
     ratio = len(missing) / len(images)
-    evidence = [str(img.get("src") or img.get("data-src") or "")[-80:] for img in missing]
+    evidence = [f"{css_path(img)}: {str(img.get('src') or img.get('data-src') or '')[-100:]}" for img in missing]
     summary = f"{len(missing)} of {plural(len(images), 'image')} without a text description (alt)"
     value = {"missing": len(missing), "total": len(images)}
     if ratio > ctx.t("img_alt_missing_ratio_fail"):
@@ -85,13 +87,27 @@ def form_labels(ctx: ScanContext):
     unlabelled = states.count("")
     placeholder_only = states.count("placeholder")
     value = {"fields": len(fields), "unlabelled": unlabelled, "placeholder_only": placeholder_only}
+
+    def where(state: str) -> list[str]:
+        return [f"{css_path(f)} ({f.name}, name={f.get('name') or '-'})" for f, s in zip(fields, states, strict=True) if s == state]
+
     if unlabelled:
         return result(
-            "a11y.form_labels", A, Status.FAIL, f"{unlabelled} of {plural(len(fields), 'form field')} without a label", value=value
+            "a11y.form_labels",
+            A,
+            Status.FAIL,
+            f"{unlabelled} of {plural(len(fields), 'form field')} without a label",
+            value=value,
+            evidence=where("") + where("placeholder"),
         )
     if placeholder_only:
         return result(
-            "a11y.form_labels", A, Status.WARN, f"{placeholder_only} form fields are labelled only by placeholder text", value=value
+            "a11y.form_labels",
+            A,
+            Status.WARN,
+            f"{placeholder_only} form fields are labelled only by placeholder text",
+            value=value,
+            evidence=where("placeholder"),
         )
     return result("a11y.form_labels", A, Status.PASS, "All form fields have labels", value=value)
 
@@ -126,11 +142,12 @@ def control_names(ctx: ScanContext):
         status = Status.FAIL
     elif count >= ctx.t("control_names_missing_warn"):
         status = Status.WARN
-    evidence = [
-        f"<{c.name}> {str(c.get('href') or '')[:80]}".strip()
-        for c in nameless
-        if not str(c.get("href") or "").startswith(("tel:", "mailto:"))
-    ]
+    evidence = []
+    for c in nameless:
+        href = str(c.get("href") or "")
+        # Never copy tel:/mailto: targets (contact data); the selector is enough to find them.
+        target = "" if href.startswith(("tel:", "mailto:")) else f" → {redact_text(href[:80])}"
+        evidence.append(f"{css_path(c)}{target}")
     return result(
         "a11y.control_names",
         A,

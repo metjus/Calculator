@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 from rich.console import Console, Group
@@ -14,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import __version__, pagespeed
+from . import __version__, claude_export, pagespeed
 from .config import Config, export_defaults
 from .inputs import SiteInput, read_csv
 from .models import Category, LogLevel, ScanResult, SiteState, Status
@@ -53,6 +54,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--pagespeed-key", default=os.environ.get("PAGESPEED_API_KEY"), help="Google PageSpeed API key (or env PAGESPEED_API_KEY)"
     )
     scan.add_argument("--screenshots", metavar="DIR", help="save desktop and mobile screenshots here")
+    scan.add_argument(
+        "--claude-export",
+        metavar="DIR",
+        help="write a folder for Claude Code (CLAUDE.md, REPORT.md, PAGE.md, page HTML, screenshots) to fix the site with",
+    )
     scan.add_argument("--concurrency", type=int, default=2, help="websites scanned at the same time (default 2)")
     scan.add_argument("--config", metavar="DIR", help="folder with JSON overrides (see 'webaudit config export')")
     scan.add_argument("--allow-private", action="store_true", help="allow localhost/private addresses (testing only)")
@@ -167,17 +173,22 @@ async def _run_scan(args: argparse.Namespace, console: Console) -> int:
         f"[bold]webaudit {__version__}[/] · {len(urls)} website(s) · browser "
         f"{'off' if args.no_browser else 'on'} · PageSpeed {'on' if args.pagespeed_key else 'off (no API key)'}"
     )
-    async with Scanner(
-        config,
-        pagespeed_key=args.pagespeed_key,
-        use_browser=not args.no_browser,
-        allow_private=args.allow_private,
-        screenshots_dir=args.screenshots,
-        on_event=on_event,
-    ) as scanner:
-        if scanner.browser_error:
-            console.print(f"[yellow]⚠ Browser checks disabled: {scanner.browser_error}[/]")
-        results = await scanner.scan_many(urls, concurrency=args.concurrency)
+    with tempfile.TemporaryDirectory(prefix="webaudit-") as scratch:
+        # The export needs screenshots and page snapshots; keep them in a temporary folder unless asked to save them.
+        files_dir = args.screenshots or (scratch if args.claude_export else None)
+        async with Scanner(
+            config,
+            pagespeed_key=args.pagespeed_key,
+            use_browser=not args.no_browser,
+            allow_private=args.allow_private,
+            screenshots_dir=files_dir,
+            snapshots=bool(args.claude_export),
+            on_event=on_event,
+        ) as scanner:
+            if scanner.browser_error:
+                console.print(f"[yellow]⚠ Browser checks disabled: {scanner.browser_error}[/]")
+            results = await scanner.scan_many(urls, concurrency=args.concurrency)
+        export_folder = _write_claude_export(results, config, Path(args.claude_export), console) if args.claude_export else None
 
     console.print()
     for result in sorted(results, key=lambda r: r.score.total if r.score else 999):
@@ -185,12 +196,26 @@ async def _run_scan(args: argparse.Namespace, console: Console) -> int:
     for item in no_website:
         console.print(Panel(f"{item.company} – no website (lead for a new website)", border_style="blue"))
     console.print(_summary(results, no_website))
+    if export_folder is not None:
+        console.print(f"[green]✔[/] Claude Code export: {export_folder} – open Claude Code there and ask it to read CLAUDE.md.")
 
     if args.json_out:
         payload = [r.model_dump(mode="json") for r in results]
         Path(args.json_out).write_text(json.dumps(payload, ensure_ascii=False, indent=2), "utf-8")
         console.print(f"[dim]Results written to {args.json_out}[/]")
     return 0
+
+
+def _write_claude_export(results: list[ScanResult], config: Config, target: Path, console: Console) -> Path | None:
+    """Write the export while the scan's temporary files still exist; returns the folder."""
+    scored = [r for r in results if r.state is SiteState.OK and r.score]
+    if not scored:
+        console.print("[yellow]Nothing to export for Claude Code: no website could be scored.[/]")
+        return None
+    if len(results) == 1:
+        return claude_export.write_dir(claude_export.site_files(scored[0], config), target / claude_export.bundle_name(scored[0]))
+    name = f"webaudit-{len(results)}-websites-{scored[0].started_at:%Y-%m-%d}"
+    return claude_export.write_dir(claude_export.audit_files(results, config), target / name)
 
 
 def main(argv: list[str] | None = None) -> int:

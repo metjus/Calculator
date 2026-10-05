@@ -125,6 +125,10 @@ class ScanResult(BaseModel):
     tech: TechInfo = Field(default_factory=TechInfo)
     protection: Protection | None = None
     screenshots: dict[str, str] = Field(default_factory=dict)
+    # Page snapshots ("source", "rendered") as gzip'd HTML files with contact data redacted.
+    snapshots: dict[str, str] = Field(default_factory=dict)
+    # What the homepage contains (inventory.build): meta, headings, content, links, images, forms, assets.
+    inventory: dict[str, Any] = Field(default_factory=dict)
     log: list[LogEntry] = Field(default_factory=list)
 
     @property

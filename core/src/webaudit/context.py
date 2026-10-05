@@ -41,6 +41,7 @@ class ScanContext:
     http_probe: Fetch | None = None
     sitemap_found: bool | None = None
     favicon_found: bool | None = None
+    contact_url: str | None = None
     contact_dom: BeautifulSoup | None = None
     link_results: dict[str, tuple[int | None, str | None]] = field(default_factory=dict)
     image_bytes: dict[str, int] = field(default_factory=dict)  # only used without a browser

@@ -10,6 +10,7 @@ A failure on one site never stops the batch.
 from __future__ import annotations
 
 import asyncio
+import gzip
 import inspect
 import time
 from collections.abc import Awaitable, Callable, Iterable
@@ -22,7 +23,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from . import checks as check_registry
-from . import pagespeed, protection, scoring, techdetect
+from . import inventory, pagespeed, protection, scoring, techdetect
 from .browser import Browser, BrowserUnavailable, safe_filename
 from .checks.trust import find_contact_link, social_profiles
 from .config import Config
@@ -32,6 +33,7 @@ from .fetch import Fetch, PoliteClient, RateLimiter
 from .inputs import normalize_url
 from .models import LogEntry, LogLevel, ScanResult, SiteState, utcnow
 from .netguard import BlockedTarget, NetGuard
+from .redact import redact_html
 
 PROTECTED_REASON = {
     "cloudflare": "Probably protected by Cloudflare – check manually",
@@ -64,6 +66,7 @@ class Scanner:
         use_browser: bool = True,
         allow_private: bool = False,
         screenshots_dir: str | Path | None = None,
+        snapshots: bool = True,
         limiter: RateLimiter | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         on_event: EventHandler | None = None,
@@ -72,7 +75,9 @@ class Scanner:
         self.config = config or Config.load()
         self.pagespeed_key = pagespeed_key
         self.use_browser = use_browser and self.config.scanner["browser"]["enabled"]
+        # Files (screenshots, redacted page snapshots) are only written when a folder is given.
         self.screenshots_dir = Path(screenshots_dir) if screenshots_dir else None
+        self.snapshots = snapshots
         self.guard = guard or NetGuard(allow_private=allow_private)
         self.client = PoliteClient(self.config, self.guard, limiter=limiter, transport=transport)
         self.on_event = on_event
@@ -245,12 +250,29 @@ class Scanner:
         for render, name in ((ctx.desktop, "desktop"), (ctx.mobile, "mobile")):
             if render and render.screenshot:
                 res.screenshots[name] = render.screenshot
+        res.inventory = inventory.build(ctx)
+        if self.screenshots_dir is not None and self.snapshots:
+            res.snapshots = self._write_snapshots(ctx)
         if res.score is None:
             res.state, res.state_reason = SiteState.UNREACHABLE, "nothing could be evaluated"
             await log("error", res.state_reason)
             return
         res.state = SiteState.OK
         await log("ok", f"score {res.score.total}/100 ({res.score.category.value}), {len(res.issues)} issues")
+
+    def _write_snapshots(self, ctx: ScanContext) -> dict[str, str]:
+        """Save the server HTML and the rendered DOM, with e-mails and phone numbers redacted."""
+        assert self.screenshots_dir is not None
+        pages = {"source": ctx.home.text}
+        if ctx.browser_ok and ctx.desktop.html:
+            pages["rendered"] = ctx.desktop.html
+        self.screenshots_dir.mkdir(parents=True, exist_ok=True)
+        written = {}
+        for name, html in pages.items():
+            path = self.screenshots_dir / f"{safe_filename(ctx.final_url)}-{name}.html.gz"
+            path.write_bytes(gzip.compress(redact_html(html).encode("utf-8")))
+            written[name] = str(path)
+        return written
 
     def _mark_protected(self, res: ScanResult, found: protection.Protection) -> None:
         res.protection = found
@@ -277,6 +299,7 @@ class Scanner:
 
         contact_url = find_contact_link(ctx.static_dom, base, self.config.signatures["contact_link_keywords"])
         if contact_url and contact_url.rstrip("/") != base.rstrip("/"):
+            ctx.contact_url = contact_url
             got = await self.client.fetch(contact_url)
             if got.ok and "html" in got.headers.get("content-type", "html"):
                 ctx.contact_dom = parse(got.text)

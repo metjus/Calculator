@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from urllib.parse import urlsplit
-
 from ..context import ScanContext
 from ..models import Area, Status
 from . import check, grade, na, plural, result
@@ -119,7 +117,7 @@ def large_images(ctx: ScanContext):
         return na("speed.large_images", A, "No images measured")
     heavy = sorted(((u, b) for u, b in sizes.items() if b >= large_at), key=lambda x: -x[1])
     huge = [u for u, b in heavy if b >= huge_at]
-    evidence = [f"{urlsplit(u).path or u} ({b // 1024} KB)" for u, b in heavy] + [f"{o} (scaled down in the browser)" for o in oversized]
+    evidence = [f"{u[:160]} ({b // 1024} KB)" for u, b in heavy] + [f"{o} (scaled down in the browser)" for o in oversized]
     value = {"heavy": len(heavy), "huge": len(huge), "oversized": len(oversized)}
     problems = len(heavy) + len(oversized)
     if huge or problems >= 3:

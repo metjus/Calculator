@@ -203,6 +203,7 @@ class AuditWorker:
     async def _site_done(self, audit_id: int, site_id: int, position: int, result: ScanResult) -> None:
         payload = result.model_dump(mode="json")
         payload["screenshots"] = {name: self._relative(path) for name, path in result.screenshots.items()}
+        payload["snapshots"] = {name: self._relative(path) for name, path in result.snapshots.items()}
         ok = result.state is SiteState.OK and result.score is not None
         async with self.sessionmaker() as db:
             site = await db.get(AuditSite, site_id)

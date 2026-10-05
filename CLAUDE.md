@@ -50,12 +50,14 @@ Data flow for one site (`scanner.py`, `Scanner._scan`):
 3. **Score**:
    - `scoring.score` takes area-weighted means over non-`na` checks, re-normalising over the areas present (e.g. no PageSpeed key, no AI review). It returns `None` → the site is not scored.
    - `scoring.rank_issues` orders warn/fail checks by points of total score lost.
+4. **Keep**: `inventory.build` describes what the homepage contains; with a files folder the scanner also saves redacted, gzip'd HTML snapshots next to the screenshots. `claude_export.py` turns a result into the Claude Code folder/ZIP (`webaudit scan --claude-export`, `GET /api/audits/{id}[/sites/{sid}]/claude-export`).
 
 Invariants that span files:
 
-- **A check id must be listed in three places:** its `@check(...)` decorator, `defaults/scoring.json` (area + weight; unlisted checks are informational) and `defaults/texts.json` (SK/CS/EN `label/problem/impact/solution`, optional `warn` override). `tests/test_units.py` asserts the texts exist.
+- **A check id must be listed in four places:** its `@check(...)` decorator, `defaults/scoring.json` (area + weight; unlisted checks are informational), `defaults/texts.json` (SK/CS/EN `label/problem/impact/solution`, optional `warn` override) and `defaults/devnotes.json` (English `fix/verify/effort` for the Claude Code export). `tests/test_units.py` and `tests/test_export.py` assert the texts and notes exist.
+- **Evidence says where the problem is.** Put CSS selectors (`dom.css_path`, `cssPath` in browser.py), URLs or file names in `CheckResult.evidence`; `REPORT.md` in the Claude Code export lists them under “Where”.
 - **SSRF boundary:** user URLs go through `NetGuard.check_url` on every httpx hop; Chromium is launched with `egress.GuardedProxy` as its proxy (the route handler is only a fast-fail — Playwright doesn't route redirect hops or WebSockets). Never launch a browser or HTTP client that bypasses these. `test_browser_cannot_reach_internal_hosts` must keep passing.
-- **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails, and the e2e test asserts this.
+- **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails. Any page text that is kept (the `inventory`, page snapshots, title values) goes through `redact.redact_text` / `redact_html` first. The e2e and export tests assert this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.
 - **Progress for the UI** flows through `ProgressEvent` (`on_event` callback): `step` events, log events with levels ok/warn/error, and a final `done` event carrying the `ScanResult`.

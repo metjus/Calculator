@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ..context import ScanContext
+from ..dom import css_path
 from ..models import Area, Status
 from . import check, grade, na, plural, result
 
@@ -23,7 +24,12 @@ def fixed_width(ctx: ScanContext):
     value = {"viewport_width": width, "scroll_width": scroll}
     if overflow > ctx.t("fixed_width_tolerance_px"):
         return result(
-            "design.fixed_width", A, Status.FAIL, f"Layout keeps a fixed width of about {scroll}px and does not adapt", value=value
+            "design.fixed_width",
+            A,
+            Status.FAIL,
+            f"Layout keeps a fixed width of about {scroll}px and does not adapt",
+            value=value,
+            evidence=narrow.get("wide_elements", []),
         )
     return result("design.fixed_width", A, Status.PASS, "Layout adapts to the window width", value=value)
 
@@ -34,9 +40,11 @@ def table_layout(ctx: ScanContext):
     if not tables:
         return result("design.table_layout", A, Status.PASS, "No tables used for layout", value=0)
     layout = 0
+    where: list[str] = []
     for table in tables:
         if table.get("role") in ("presentation", "none"):
             layout += 1
+            where.append(css_path(table))
             continue
         if table.find("th") or table.find("caption"):
             continue  # data table
@@ -45,8 +53,11 @@ def table_layout(ctx: ScanContext):
         blocks = len(table.find_all(["img", "ul", "form", "iframe", "nav", "h1", "h2"]))
         if nested or (legacy_attrs and blocks) or blocks >= 4:
             layout += 1
+            where.append(css_path(table))
     if layout:
-        return result("design.table_layout", A, Status.FAIL, f"{plural(layout, 'table')} used to lay out the page", value=layout)
+        return result(
+            "design.table_layout", A, Status.FAIL, f"{plural(layout, 'table')} used to lay out the page", value=layout, evidence=where
+        )
     return result("design.table_layout", A, Status.PASS, "No tables used for layout", value=0)
 
 
@@ -93,10 +104,12 @@ def font_count(ctx: ScanContext):
 @check("design.legacy_markup", A)
 def legacy_markup(ctx: ScanContext):
     found: dict[str, int] = {}
+    where: list[str] = []
     for tag in ctx.signatures["legacy_tags"]:
-        count = len(ctx.static_dom.find_all(tag))
-        if count:
-            found[f"<{tag}>"] = count
+        elements = ctx.static_dom.find_all(tag)
+        if elements:
+            found[f"<{tag}>"] = len(elements)
+            where += [f"<{tag}> at {css_path(el)}" for el in elements[:3]]
     flash = [
         t
         for t in ctx.static_dom.find_all(["embed", "object"])
@@ -108,7 +121,7 @@ def legacy_markup(ctx: ScanContext):
     if body is not None and any(body.get(a) for a in ("bgcolor", "background", "text", "link")):
         found["<body bgcolor>"] = 1
     if found:
-        evidence = [f"{k} ×{v}" for k, v in found.items()]
+        evidence = [f"{k} ×{v}" for k, v in found.items()] + where
         return result(
             "design.legacy_markup",
             A,

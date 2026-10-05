@@ -1,10 +1,12 @@
-"""Batch audits: create, list, detail, stop, live progress (SSE) and screenshots."""
+"""Batch audits: create, list, detail, stop, live progress (SSE), screenshots and the Claude Code export."""
 
 from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+import os
+import tempfile
+from collections.abc import AsyncIterator, Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,12 +16,13 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from webaudit import Config
+from starlette.background import BackgroundTask
+from webaudit import Config, ScanResult, SiteState, claude_export
 from webaudit.report import check_label
 
 from ..audit_service import AuditRequest, CreatedAudit, create_audit, parse_csv_bytes, parse_url_text
 from ..deps import current_user, get_db, get_settings
-from ..models import Audit, AuditEvent, AuditSite, User
+from ..models import Audit, AuditEvent, AuditSite, User, Workspace
 from ..settings import Settings
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
@@ -195,6 +198,99 @@ async def get_screenshot(
     if not path.is_relative_to(root) or not path.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Screenshot not found")
     return FileResponse(Path(path), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+def _file_reader(settings: Settings) -> Callable[[str], bytes | None]:
+    """Read stored screenshots/snapshots, confined to the data folder."""
+    root = settings.data_dir.resolve()
+
+    def read(relative: str) -> bytes | None:
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            return None
+        return path.read_bytes()
+
+    return read
+
+
+async def _workspace_config(db: AsyncSession, user: User) -> Config:
+    workspace = await db.get(Workspace, user.workspace_id)
+    return Config.load(overrides=workspace.config_overrides or None)
+
+
+def _slug(text: str) -> str:
+    return "-".join("".join(ch if ch.isalnum() else " " for ch in text.lower()).split())[:60]
+
+
+async def _zip_response(files: Any, root: str) -> FileResponse:
+    """Write the ZIP to a temporary file (batches can be large) and stream it."""
+
+    def build() -> str:
+        handle, path = tempfile.mkstemp(prefix="webaudit-export-", suffix=".zip")
+        try:
+            with os.fdopen(handle, "wb") as target:
+                claude_export.write_zip(files() if callable(files) else files, root, target)
+        except BaseException:
+            os.unlink(path)
+            raise
+        return path
+
+    path = await asyncio.to_thread(build)
+    return FileResponse(
+        path,
+        media_type="application/zip",
+        filename=f"{root}.zip",
+        headers={"Cache-Control": "no-store"},
+        background=BackgroundTask(os.unlink, path),
+    )
+
+
+@router.get("/{audit_id}/sites/{site_id}/claude-export")
+async def export_site(
+    audit_id: int,
+    site_id: int,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """ZIP for Claude Code: what the page contains and where each problem is (see webaudit.claude_export)."""
+    await _own_audit(db, user, audit_id)
+    site = await db.get(AuditSite, site_id)
+    if site is None or site.audit_id != audit_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Website not found")
+    if site.state != SiteState.OK.value or not site.result:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only scored websites can be exported")
+    result = ScanResult.model_validate(site.result)
+    config = await _workspace_config(db, user)
+    files = await asyncio.to_thread(claude_export.site_files, result, config, _file_reader(settings))
+    return await _zip_response(files, claude_export.bundle_name(result))
+
+
+@router.get("/{audit_id}/claude-export")
+async def export_audit(
+    audit_id: int,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """One ZIP with an index and a folder per scored website."""
+    audit = await _own_audit(db, user, audit_id)
+    if audit.status in ("queued", "running"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Wait until the audit has finished")
+    sites = list(await db.scalars(select(AuditSite).where(AuditSite.audit_id == audit.id).order_by(AuditSite.position)))
+    results: list[ScanResult] = []
+    for site in sites:
+        if site.result:
+            results.append(ScanResult.model_validate(site.result))
+        elif site.state in {s.value for s in SiteState}:
+            results.append(ScanResult(input_url=site.input_url, state=SiteState(site.state), state_reason=site.state_reason))
+    if not any(r.state is SiteState.OK and r.score for r in results):
+        raise HTTPException(status.HTTP_409_CONFLICT, "No website in this audit was scored")
+    config = await _workspace_config(db, user)
+    title = audit.project or f"Audit #{audit.id}"
+    root = f"webaudit-{_slug(audit.project) if audit.project else f'audit-{audit.id}'}-{audit.created_at:%Y-%m-%d}"
+    reader = _file_reader(settings)
+    return await _zip_response(lambda: claude_export.iter_audit_files(results, config, reader, title=title), root)
 
 
 @router.post("/{audit_id}/stop", response_model=AuditOut)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from typing import Any
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -94,3 +95,35 @@ def class_and_id(tag: Tag) -> str:
     if isinstance(classes, str):
         classes = [classes]
     return " ".join([*classes, str(tag.get("id") or "")]).lower()
+
+
+_IDENT = re.compile(r"-?[A-Za-z_][\w-]*")
+
+
+def css_path(tag: Tag, depth: int = 6) -> str:
+    """A short CSS selector that locates ``tag`` (stops at the nearest id), e.g. ``div#main > p.note:nth-of-type(2)``.
+
+    Mirrors ``cssPath`` in browser.py so static and rendered evidence read the same.
+    """
+    parts: list[str] = []
+    node: Tag | None = tag
+    while isinstance(node, Tag) and node.name not in ("[document]", "html") and len(parts) < depth:
+        node_id = node.get("id")
+        if isinstance(node_id, str) and _IDENT.fullmatch(node_id):
+            parts.append(f"{node.name}#{node_id}")
+            break
+        part = node.name
+        classes = [c for c in (node.get("class") or []) if _IDENT.fullmatch(c)][:2]
+        if classes:
+            part += "." + ".".join(classes)
+        parent = node.parent
+        if isinstance(parent, Tag):
+            siblings = parent.find_all(node.name, recursive=False)
+            if len(siblings) > 1:
+                position = next(i for i, sibling in enumerate(siblings, start=1) if sibling is node)
+                part += f":nth-of-type({position})"
+        parts.append(part)
+        if node.name == "body":
+            break
+        node = parent
+    return " > ".join(reversed(parts))

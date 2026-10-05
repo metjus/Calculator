@@ -61,8 +61,32 @@ FONTS_JS = r"""
 }
 """
 
+# Short CSS selector for evidence ("where is the problem"); mirrors dom.css_path. Injected into snippets.
+CSS_PATH_JS = r"""
+  const cssPath = (el) => {
+    const ident = /^-?[A-Za-z_][\w-]*$/;
+    const parts = [];
+    for (let e = el; e && e.nodeType === 1 && e.tagName !== 'HTML' && parts.length < 6; e = e.parentElement) {
+      const tag = e.tagName.toLowerCase();
+      if (e.id && ident.test(e.id)) { parts.unshift(tag + '#' + e.id); break; }
+      let part = tag;
+      const cls = typeof e.className === 'string' ? e.className.trim().split(/\s+/).filter((c) => ident.test(c)).slice(0, 2) : [];
+      if (cls.length) part += '.' + cls.join('.');
+      const p = e.parentElement;
+      if (p) {
+        const same = Array.from(p.children).filter((c) => c.tagName === e.tagName);
+        if (same.length > 1) part += `:nth-of-type(${same.indexOf(e) + 1})`;
+      }
+      parts.unshift(part);
+      if (tag === 'body') break;
+    }
+    return parts.join(' > ');
+  };
+"""
+
 CONTRAST_JS = r"""
 (args) => {
+  /*CSS_PATH*/
   const parse = (c) => {
     const m = (c || '').match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
@@ -114,7 +138,7 @@ CONTRAST_JS = r"""
     checked++;
     if (ratio < (large ? 3 : 4.5)) {
       failing++;
-      if (samples.length < 8) samples.push(`${el.tagName.toLowerCase()} ${hex(fg)} on ${hex(bg)} (${ratio.toFixed(2)}:1)`);
+      if (samples.length < 10) samples.push(`${cssPath(el)}: ${hex(fg)} on ${hex(bg)} (${ratio.toFixed(2)}:1, ${Math.round(size)}px)`);
     }
   }
   return {checked, failing, samples};
@@ -123,6 +147,7 @@ CONTRAST_JS = r"""
 
 TAP_TARGETS_JS = r"""
 (args) => {
+  /*CSS_PATH*/
   // Without a mobile viewport the page is zoomed out, so targets are smaller on screen.
   const scale = Math.min(1, screen.width / Math.max(1, document.documentElement.clientWidth));
   const MIN = args.min / scale;
@@ -153,7 +178,7 @@ TAP_TARGETS_JS = r"""
     }
     if (crowded) {
       failing++;
-      if (samples.length < 8) samples.push(`${el.tagName.toLowerCase()} ${Math.round(r.width * scale)}×${Math.round(r.height * scale)}px on screen`);
+      if (samples.length < 10) samples.push(`${cssPath(el)}: ${Math.round(r.width * scale)}×${Math.round(r.height * scale)}px on screen`);
     }
   }
   return {total: items.length, failing, samples, scale: Math.round(scale * 1000) / 1000};
@@ -162,6 +187,7 @@ TAP_TARGETS_JS = r"""
 
 LAYOUT_JS = r"""
 (tolerance) => {
+  /*CSS_PATH*/
   const de = document.documentElement;
   const sw = Math.max(de.scrollWidth, document.body ? document.body.scrollWidth : 0);
   const cw = de.clientWidth;
@@ -170,8 +196,7 @@ LAYOUT_JS = r"""
     for (const el of document.body.getElementsByTagName('*')) {
       const r = el.getBoundingClientRect();
       if (r.width > 0 && r.right > cw + tolerance && getComputedStyle(el).position !== 'fixed') {
-        const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
-        wide.push(el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (cls ? '.' + cls : '') + ` (${Math.round(r.width)}px)`);
+        wide.push(`${cssPath(el)}: ${Math.round(r.width)}px wide, right edge at ${Math.round(r.right)}px`);
         if (wide.length >= 5) break;
       }
     }
@@ -201,13 +226,14 @@ LIBRARIES_JS = r"""
 
 IMAGES_JS = r"""
 (args) => {
+  /*CSS_PATH*/
   const out = [];
   for (const img of document.images) {
     const r = img.getBoundingClientRect();
     if (!img.complete || !img.naturalWidth || r.width < 2) continue;
     if (img.naturalWidth >= args.minPx && img.naturalWidth > r.width * args.ratio * (window.devicePixelRatio || 1)) {
-      const name = (img.currentSrc || img.src).split('?')[0].split('/').pop().slice(-60);
-      out.push(`${name} ${img.naturalWidth}px shown at ${Math.round(r.width)}px`);
+      const src = (img.currentSrc || img.src).split('?')[0].slice(-160);
+      out.push(`${src} (${cssPath(img)}): ${img.naturalWidth}px wide, shown at ${Math.round(r.width)}px`);
       if (out.length >= 10) break;
     }
   }
@@ -255,6 +281,10 @@ BANNER_BUTTON_JS = r"""
   return null;
 }
 """
+
+CONTRAST_JS, TAP_TARGETS_JS, LAYOUT_JS, IMAGES_JS = (
+    js.replace("/*CSS_PATH*/", CSS_PATH_JS.strip()) for js in (CONTRAST_JS, TAP_TARGETS_JS, LAYOUT_JS, IMAGES_JS)
+)
 
 IGNORED_CONSOLE = ("ERR_BLOCKED_BY_CLIENT", "net::ERR_ABORTED")
 CONSENT_FRAME_HINTS = ("consent", "cmp", "privacy", "cookie", "gdpr")

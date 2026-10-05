@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..context import ScanContext
 from ..models import Area, Status
+from ..redact import redact_text
 from ..techdetect import detect_cms, detect_libraries, rate_version
 from . import check, na, plural, result
 
@@ -57,7 +58,7 @@ def console_errors(ctx: ScanContext):
         status,
         f"{plural(count, 'JavaScript error')} while loading",
         value=count,
-        evidence=[e[:160] for e in errors],
+        evidence=[redact_text(e[:160]) for e in errors],  # messages can quote page text
     )
 
 

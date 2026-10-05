@@ -16,7 +16,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-CONFIG_FILES = ("scanner", "scoring", "signatures", "texts", "cookie_banners")
+CONFIG_FILES = ("scanner", "scoring", "signatures", "texts", "cookie_banners", "devnotes")
 ENV_CONFIG_DIR = "WEBAUDIT_CONFIG_DIR"
 
 
@@ -42,6 +42,7 @@ class Config:
     signatures: dict[str, Any]
     texts: dict[str, Any]
     cookie_banners: dict[str, Any]
+    devnotes: dict[str, Any]  # technical fix/verify notes for the Claude Code export
 
     @classmethod
     def load(

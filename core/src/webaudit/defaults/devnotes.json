@@ -1,0 +1,220 @@
+{
+  "_comment": "Technical notes per check for the Claude Code export (English). fix = what to change, verify = how to confirm it, effort = quick | moderate | larger. Client-facing wording lives in texts.json.",
+  "checks": {
+    "basics.https": {
+      "effort": "moderate",
+      "fix": "Install a TLS certificate (Let's Encrypt or the host's free certificate), serve every page over https and update hard-coded http:// links, canonical tags and the CMS site URL (WordPress: Settings → General, or WP_HOME/WP_SITEURL).",
+      "verify": "Open https://<domain>/ without a browser warning; `curl -sI https://<domain>/` returns 200."
+    },
+    "basics.ssl_valid": {
+      "effort": "quick",
+      "fix": "Renew or replace the certificate so it is valid, not expired, issued for this hostname (including or excluding www as used) and served with the full intermediate chain.",
+      "verify": "`openssl s_client -connect <domain>:443 -servername <domain>` shows `Verify return code: 0 (ok)`; SSL Labs grade A or B."
+    },
+    "basics.http_redirect": {
+      "effort": "quick",
+      "fix": "Redirect every http:// request to the same path on https:// with a 301 (server config, .htaccess `RewriteRule` or the hosting panel's 'force HTTPS'). Consider an HSTS header afterwards.",
+      "verify": "`curl -sI http://<domain>/` answers 301 with `Location: https://<domain>/`."
+    },
+    "mobile.viewport": {
+      "effort": "quick",
+      "fix": "Add `<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">` to <head>; remove user-scalable=no / maximum-scale=1 so people can zoom. Without a responsive stylesheet this alone is not enough (see the other mobile problems).",
+      "verify": "The tag is present in page/source.html; on a 390px-wide phone view text is readable without zooming."
+    },
+    "mobile.font_size": {
+      "effort": "moderate",
+      "fix": "Set a base font size of at least 16px for body text on small screens and use relative units (rem) for text; check footer, captions and menu text, which are often set in 10–12px.",
+      "verify": "In a 390px viewport no running text is smaller than 12px (DevTools → computed font-size)."
+    },
+    "mobile.tap_targets": {
+      "effort": "moderate",
+      "fix": "Make links and buttons at least 44×44px on phones (48px is better; use padding or min-height) or add at least 8px space between them. The 'Where' list names the elements that are too small or too close.",
+      "verify": "Re-run the audit, or check the listed selectors in a 390px viewport: each target's box is ≥ 44px or clearly separated."
+    },
+    "mobile.horizontal_scroll": {
+      "effort": "moderate",
+      "fix": "Find the elements wider than the screen (listed under 'Where') and constrain them: `max-width: 100%` for images/iframes/tables, avoid fixed pixel widths, wrap long words or URLs, use responsive layouts (flex/grid) instead of fixed-width containers.",
+      "verify": "In a 390px viewport `document.documentElement.scrollWidth <= window.innerWidth`."
+    },
+    "speed.pagespeed_mobile": {
+      "effort": "larger",
+      "fix": "Work through the largest PageSpeed opportunities: compress and resize images, defer non-critical JavaScript, remove unused CSS/JS and plugins, enable caching and compression on the server.",
+      "verify": "Run PageSpeed Insights for mobile again and compare the performance score."
+    },
+    "speed.pagespeed_desktop": {
+      "effort": "larger",
+      "fix": "Same levers as mobile: smaller images, less render-blocking JavaScript and CSS, server caching and compression.",
+      "verify": "Run PageSpeed Insights for desktop again and compare the performance score."
+    },
+    "speed.core_web_vitals": {
+      "effort": "larger",
+      "fix": "LCP: serve the main hero image small and early (preload, no lazy-loading above the fold). TBT/INP: cut and defer JavaScript. CLS: give images and embeds width/height or aspect-ratio and avoid inserting content above existing content.",
+      "verify": "PageSpeed Insights or Lighthouse shows LCP, TBT/INP and CLS in the green range."
+    },
+    "speed.large_images": {
+      "effort": "quick",
+      "fix": "Resize the listed images to at most about twice their displayed width, convert photos to WebP/AVIF (or well-compressed JPEG), and use srcset/sizes so phones load smaller versions.",
+      "verify": "The listed files are each under 300 KB and not much wider than displayed (Network tab or re-run the audit)."
+    },
+    "speed.page_weight": {
+      "effort": "moderate",
+      "fix": "Reduce what the homepage downloads: optimise images first, then remove unused fonts, sliders, tracking scripts and plugins. See PAGE.md → assets for the requests by type.",
+      "verify": "DevTools Network panel shows the total transfer for the homepage clearly lower than before."
+    },
+    "speed.server_response": {
+      "effort": "moderate",
+      "fix": "Enable page caching (CMS cache plugin or server cache), use a current PHP/runtime version, check slow database queries or plugins; consider better hosting or a CDN.",
+      "verify": "`curl -o /dev/null -s -w '%{time_starttransfer}\\n' https://<domain>/` stays below about 0.8 s over several tries."
+    },
+    "seo.title": {
+      "effort": "quick",
+      "fix": "Write a unique <title> of about 30–60 characters: main service + town + business name (e.g. 'Kaderníctvo v Trnave – Salón Lena'). Avoid generic titles like 'Home' or 'Úvod'.",
+      "verify": "The new <title> appears in page/source.html after deploying and in the browser tab."
+    },
+    "seo.meta_description": {
+      "effort": "quick",
+      "fix": "Add `<meta name=\"description\">` with about 70–160 characters describing what the business offers and where; make it read like an invitation to click.",
+      "verify": "The tag is present in the server HTML with a sensible length."
+    },
+    "seo.h1": {
+      "effort": "quick",
+      "fix": "Use exactly one <h1> per page that states what the page is about; turn other big headings into <h2>/<h3>. Don't put the logo image alone in the H1 without text.",
+      "verify": "`document.querySelectorAll('h1').length === 1` and its text is meaningful."
+    },
+    "seo.indexable": {
+      "effort": "quick",
+      "fix": "Remove `noindex` from the robots meta tag or X-Robots-Tag header and make sure robots.txt does not block the whole site (WordPress: Settings → Reading → 'Discourage search engines' off).",
+      "verify": "No noindex in page/source.html or the response headers; robots.txt allows `/`."
+    },
+    "seo.sitemap": {
+      "effort": "quick",
+      "fix": "Publish an XML sitemap (most CMSs or SEO plugins generate one, e.g. /wp-sitemap.xml) and reference it in robots.txt with `Sitemap: https://<domain>/sitemap.xml`.",
+      "verify": "The sitemap URL returns XML with <urlset> or <sitemapindex>."
+    },
+    "seo.open_graph": {
+      "effort": "quick",
+      "fix": "Add og:title, og:description and og:image (at least 1200×630px) meta tags so shared links show a proper preview.",
+      "verify": "The tags are in the server HTML; a link preview (e.g. Facebook Sharing Debugger) shows the image and text."
+    },
+    "seo.favicon": {
+      "effort": "quick",
+      "fix": "Add a favicon: `<link rel=\"icon\" href=\"/favicon.svg\" type=\"image/svg+xml\">` plus a PNG/ICO fallback and an apple-touch-icon (180×180).",
+      "verify": "The icon appears in the browser tab and /favicon.ico or the linked file returns 200."
+    },
+    "seo.structured_data": {
+      "effort": "quick",
+      "fix": "Add JSON-LD for the business (schema.org LocalBusiness or a specific type such as HairSalon/AutoRepair) with name, address, opening hours and URL. Ask the user for the phone number instead of inventing one.",
+      "verify": "Google's Rich Results Test or validator.schema.org reads the block without errors."
+    },
+    "trust.contact": {
+      "effort": "quick",
+      "fix": "Show the phone number and e-mail visibly on the homepage (header or footer) and on a contact page. The real values were removed from this export; ask the user for them.",
+      "verify": "A visitor can see a phone number or e-mail on the homepage without scrolling through several screens."
+    },
+    "trust.clickable_phone": {
+      "effort": "quick",
+      "fix": "Wrap phone numbers in `<a href=\"tel:+421...\">` links (international format, no spaces in the href) so phones can call with one tap. Ask the user for the number.",
+      "verify": "Every visible phone number on the homepage is inside a tel: link."
+    },
+    "trust.address_map": {
+      "effort": "quick",
+      "fix": "Show the street address (ideally in an <address> element) and a map or a link to Google Maps / Mapy.cz on the homepage or contact page.",
+      "verify": "Address text and a map embed or map link are present."
+    },
+    "trust.footer_year": {
+      "effort": "quick",
+      "fix": "Update the © year in the footer, preferably generated automatically (PHP `date('Y')`, a template variable or JavaScript).",
+      "verify": "The footer shows the current year."
+    },
+    "trust.social_links": {
+      "effort": "quick",
+      "fix": "Point social icons to the business's actual profile pages (not facebook.com/ or a theme demo) or remove icons for networks the business doesn't use.",
+      "verify": "Each social link opens the business's own profile."
+    },
+    "trust.cookie_banner": {
+      "effort": "moderate",
+      "fix": "Load analytics/marketing scripts only after consent: add a consent banner (CMP) or remove the trackers. With Google Analytics use Consent Mode; don't fire tags before the visitor accepts.",
+      "verify": "In a fresh private window, no requests to tracking hosts happen before clicking 'Accept'."
+    },
+    "trust.broken_links": {
+      "effort": "quick",
+      "fix": "Fix or remove the listed links (each shows the target, the HTTP result and the element that links to it); redirect deleted pages with 301 to the closest current page.",
+      "verify": "Each listed URL returns 200 (or the link is gone)."
+    },
+    "tech.cms_version": {
+      "effort": "moderate",
+      "fix": "Back up the site, then update the CMS core, theme and plugins to current versions; remove unused plugins. Hide the version number from the generator meta tag if possible.",
+      "verify": "The CMS admin shows no pending core updates; the generator tag no longer shows an old version."
+    },
+    "tech.outdated_libraries": {
+      "effort": "moderate",
+      "fix": "Upgrade the listed libraries (e.g. jQuery to 3.x with jQuery Migrate during the transition) or remove them if unused; test sliders, menus and forms afterwards.",
+      "verify": "`jQuery.fn.jquery` (or the library's version) in the console shows the new version; no new console errors."
+    },
+    "tech.console_errors": {
+      "effort": "moderate",
+      "fix": "Open the browser console on the homepage and fix the listed errors: missing files (404s), scripts loaded in the wrong order, calls to removed APIs.",
+      "verify": "Console shows no red errors after a full page load (desktop and mobile)."
+    },
+    "tech.mixed_content": {
+      "effort": "quick",
+      "fix": "Change the listed http:// resources to https:// (or protocol-relative/relative URLs); in a CMS run a search-and-replace on the database for the old http URL.",
+      "verify": "Browser console shows no 'Mixed Content' warnings; all resources load over https."
+    },
+    "a11y.contrast": {
+      "effort": "moderate",
+      "fix": "Darken text or lighten backgrounds for the listed elements to reach WCAG AA: 4.5:1 for normal text, 3:1 for large text (24px+, or 18.66px+ bold). Adjust the theme colour variables rather than single elements when possible.",
+      "verify": "A contrast checker (DevTools colour picker) shows ≥ 4.5:1 for each listed element."
+    },
+    "a11y.img_alt": {
+      "effort": "quick",
+      "fix": "Add meaningful alt text to the listed images (what the image shows or does); use alt=\"\" for purely decorative images.",
+      "verify": "Every <img> has an alt attribute; informative images have a description."
+    },
+    "a11y.form_labels": {
+      "effort": "quick",
+      "fix": "Give each listed field a visible <label for=\"id\"> (placeholder text alone disappears while typing and is not a label); use aria-label only when a visible label is impossible.",
+      "verify": "Clicking each label focuses its field; no field relies on placeholder alone."
+    },
+    "a11y.control_names": {
+      "effort": "quick",
+      "fix": "Give icon-only links and buttons an accessible name: visible text, aria-label, or alt text on the icon image (e.g. aria-label=\"Facebook\").",
+      "verify": "In DevTools → Accessibility each listed element has a non-empty name."
+    },
+    "a11y.lang": {
+      "effort": "quick",
+      "fix": "Declare the page language on the root element, e.g. `<html lang=\"sk\">` (cs, en …).",
+      "verify": "`document.documentElement.lang` is set in page/source.html."
+    },
+    "design.fixed_width": {
+      "effort": "larger",
+      "fix": "Replace fixed-width containers (the listed elements) with fluid layouts: max-width + width:100%, flex/grid, media queries. Old table or 960px layouts usually need a responsive rebuild of the template.",
+      "verify": "At a 700px-wide window there is no horizontal scrollbar and content reflows."
+    },
+    "design.table_layout": {
+      "effort": "larger",
+      "fix": "Rebuild the listed layout tables with semantic elements (header, nav, main, section, footer) and CSS grid/flex; keep <table> only for tabular data.",
+      "verify": "No <table> is used for page structure; the page still reads correctly at phone width."
+    },
+    "design.small_text": {
+      "effort": "quick",
+      "fix": "Raise the base font size to 16px and avoid text below 14px on desktop, especially for paragraphs, menu items and footer text.",
+      "verify": "Computed font-size of body text is ≥ 16px; no running text below 14px."
+    },
+    "design.font_count": {
+      "effort": "quick",
+      "fix": "Limit the design to one or two font families (one for headings, one for text) and remove unused webfont loads.",
+      "verify": "PAGE.md → assets → fonts lists at most two text families after the change."
+    },
+    "design.legacy_markup": {
+      "effort": "moderate",
+      "fix": "Replace the listed obsolete elements (<font>, <center>, <marquee>, Flash, body bgcolor…) with CSS and modern HTML; remove Flash content entirely.",
+      "verify": "None of the listed tags remain in page/source.html."
+    },
+    "design_ai.review": {
+      "effort": "larger",
+      "fix": "Address the design review points (layout, hierarchy, imagery, consistency). Show the user a proposal before restyling.",
+      "verify": "Compare new screenshots with screenshots/desktop.jpg and screenshots/mobile.jpg."
+    }
+  }
+}

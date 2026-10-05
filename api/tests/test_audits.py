@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import ssl
+import zipfile
 
 import httpx
 import pytest
@@ -134,6 +136,44 @@ async def test_screenshot_paths_cannot_escape_data_dir(user_client: httpx.AsyncC
         site_id = site.id
     response = await user_client.get(f"/api/audits/{audit_id}/sites/{site_id}/screenshots/desktop")
     assert response.status_code == 404
+
+
+async def test_claude_code_export(user_client: httpx.AsyncClient, app, sites, make_client) -> None:
+    urls = f"{sites.urls['legacy']}\n{sites.urls['cloudflare']}"
+    audit_id = (await user_client.post("/api/audits", json={"project": "Autoservisy Trnava", "urls": urls})).json()["audit"]["id"]
+    assert (await user_client.get(f"/api/audits/{audit_id}/claude-export")).status_code == 409  # not finished yet
+    assert await make_worker(app, sites).run_once() is True
+    detail = (await user_client.get(f"/api/audits/{audit_id}")).json()
+    legacy, cloudflare = (next(s for s in detail["sites"] if s["input_url"] == sites.urls[n]) for n in ("legacy", "cloudflare"))
+
+    response = await user_client.get(f"/api/audits/{audit_id}/sites/{legacy['id']}/claude-export")
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/zip"
+    assert "webaudit-127.0.0.2-" in response.headers["content-disposition"]
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    root = archive.namelist()[0].split("/")[0]
+    assert {f"{root}/CLAUDE.md", f"{root}/REPORT.md", f"{root}/PAGE.md", f"{root}/page/source.html"} <= set(archive.namelist())
+    for name in archive.namelist():
+        text = archive.read(name).decode("utf-8")
+        assert "0905" not in text and "lena-example" not in text, name  # contact data stays out
+    assert "[phone]" in archive.read(f"{root}/page/source.html").decode()
+
+    not_scored = await user_client.get(f"/api/audits/{audit_id}/sites/{cloudflare['id']}/claude-export")
+    assert not_scored.status_code == 409
+
+    batch = await user_client.get(f"/api/audits/{audit_id}/claude-export")
+    assert batch.status_code == 200
+    names = zipfile.ZipFile(io.BytesIO(batch.content)).namelist()
+    batch_root = names[0].split("/")[0]
+    assert batch_root.startswith("webaudit-autoservisy-trnava-")
+    assert f"{batch_root}/sites/127.0.0.2/REPORT.md" in names
+    index = zipfile.ZipFile(io.BytesIO(batch.content)).read(f"{batch_root}/CLAUDE.md").decode()
+    assert "## Not scored" in index and "Cloudflare" in index
+
+    async with make_client() as other:
+        await signup(other, "intruder@example.com")
+        assert (await other.get(f"/api/audits/{audit_id}/claude-export")).status_code == 404
+        assert (await other.get(f"/api/audits/{audit_id}/sites/{legacy['id']}/claude-export")).status_code == 404
 
 
 @pytest.mark.parametrize("path", ["/api/audits", "/api/settings", "/api/search/options"])

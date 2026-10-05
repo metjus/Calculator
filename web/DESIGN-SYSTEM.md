@@ -79,6 +79,7 @@ Feedback roles: `--danger`, `--warning`, `--success` with `-weak` tints for bann
 | `EmptyState` | `icon`, `title`, text, `action` | – | Explains what to do next and offers the button |
 | `AreaCombobox` | country-restricted autocomplete | loading, empty, error | ARIA combobox: ↑/↓, Enter, Esc, `aria-activedescendant` |
 | `MapPreview` | radius circle or region box | placeholder until an area is chosen | `role="img"` with a text label; scroll-zoom off |
+| Export box (`ClaudeExport` in `AuditRun`) | download link + copy-prompt button | copy falls back to a hidden textarea outside secure contexts | Toast confirms the copy; the link is a real `<a download>` |
 | Live log (`AuditRun`) | levels ok · warn · error · info | auto-scrolls only when already at the bottom | Icon has a text label; times in `<time>` |
 
 ## Patterns

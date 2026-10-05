@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, Info, LayoutDashboard, Plus, Square, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, ClipboardCopy, Info, LayoutDashboard, Plus, Square, SquareTerminal, TriangleAlert } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Banner, Button, Card, PageHeader, ProgressBar, ScoreBadge, Spinner, Tag } from "../components/ui";
@@ -82,6 +82,7 @@ export function AuditRun() {
   if (!audit) return <Spinner />;
 
   const active = audit.status === "running" || audit.status === "queued";
+  const anyScored = audit.sites.some((s) => s.state === "ok");
   const position = Math.min(audit.total, current?.position ?? audit.done_count + (active ? 1 : 0));
 
   async function stop() {
@@ -110,6 +111,16 @@ export function AuditRun() {
             </Button>
           ) : (
             <>
+              {anyScored && (
+                <a
+                  className="btn"
+                  href={`/api/audits/${audit.id}/claude-export`}
+                  download
+                  title="ZIP with every scored website: problems with exact locations, fixes, page contents, HTML and screenshots"
+                >
+                  <SquareTerminal size={16} aria-hidden /> Export for Claude Code
+                </a>
+              )}
               <Link to="/" className="btn">
                 <LayoutDashboard size={16} aria-hidden /> Open dashboard
               </Link>
@@ -249,6 +260,63 @@ type SiteDetailData = {
   result: { screenshots?: Record<string, string>; tech?: { cms: string | null; cms_version: string | null } } | null;
 };
 
+function claudePrompt(site: Site): string {
+  return (
+    `I unzipped a Web Audit export for ${hostOf(site.final_url ?? site.input_url)} into this project. ` +
+    "Read the CLAUDE.md in that folder first, then help me fix the problems from its REPORT.md, biggest impact first. " +
+    "Before each change, tell me what you will change and why; after it, show me how you verified it."
+  );
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Clipboard API needs a secure context; fall back to a temporary textarea.
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
+function ClaudeExport({ auditId, site }: { auditId: number; site: Site }) {
+  const toast = useToast();
+  return (
+    <div className="export-box">
+      <SquareTerminal size={20} aria-hidden className="export-icon" />
+      <div className="export-text">
+        <strong>Fix it with Claude Code</strong>
+        <span className="muted">
+          A ZIP with every problem and its exact place on the page, how to fix and verify it, the page contents, its HTML and screenshots. Unzip it
+          into the website's project and paste the prompt into Claude Code.
+        </span>
+      </div>
+      <div className="row" style={{ gap: 8 }}>
+        <a className="btn btn-primary btn-sm" href={`/api/audits/${auditId}/sites/${site.id}/claude-export`} download>
+          Download ZIP
+        </a>
+        <Button
+          size="sm"
+          icon={ClipboardCopy}
+          onClick={async () => {
+            const copied = await copyText(claudePrompt(site));
+            toast(copied ? "Prompt copied – paste it into Claude Code" : "Could not copy the prompt", copied ? "ok" : "error");
+          }}
+        >
+          Copy prompt
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SiteDetail({ auditId, site }: { auditId: number; site: Site }) {
   const data = useApi<SiteDetailData>(site.state === "ok" ? `/api/audits/${auditId}/sites/${site.id}` : null);
   if (site.state !== "ok") return <p className="muted">{site.state_reason ?? SITE_STATE_LABEL[site.state]}</p>;
@@ -257,6 +325,7 @@ function SiteDetail({ auditId, site }: { auditId: number; site: Site }) {
   const tech = data.data.result?.tech;
   return (
     <div className="stack">
+      <ClaudeExport auditId={auditId} site={site} />
       {data.data.issues.length ? (
         <ul className="issue-list" aria-label="Problems, biggest impact first">
           {data.data.issues.slice(0, 10).map((issue) => (

@@ -5,6 +5,7 @@ import re
 from ..context import ScanContext
 from ..dom import json_ld_types, meta_content
 from ..models import Area, Status
+from ..redact import redact_text
 from . import check, na, result
 
 A = Area.SEO
@@ -17,9 +18,9 @@ def title(ctx: ScanContext):
     if not text:
         return result("seo.title", A, Status.FAIL, "Page has no title", value=None)
     length = len(text)
-    value = {"length": length, "text": text[:120]}
+    value = {"length": length, "text": redact_text(text[:120])}
     if text.lower() in ctx.t("generic_titles"):
-        return result("seo.title", A, Status.WARN, f"Generic title “{text}”", value=value)
+        return result("seo.title", A, Status.WARN, f"Generic title “{value['text']}”", value=value)
     if length < ctx.t("title_min_chars") or length > ctx.t("title_max_chars"):
         return result(
             "seo.title",

@@ -159,6 +159,22 @@ What exists now, and where it deliberately differs from the target picture above
 Configuration is environment-only (`WEBAUDIT_*`, see `api/README.md`); nothing
 secret is read from files in the repository.
 
+## Claude Code export (added after stage 2, on request)
+
+After a scan, each scored website can be downloaded as a ZIP for Claude Code
+(per site, or per audit with an index): `CLAUDE.md` with working rules,
+`REPORT.md` with every problem ranked by impact including **where** it is
+(CSS selectors, URLs, files), how to fix it and how to verify the fix,
+`PAGE.md` describing what the homepage contains, the server and rendered HTML,
+screenshots and `scan.json`. The designer unzips it into the website's project
+and works through the fixes with Claude Code.
+
+Privacy: page text is kept only with e-mail addresses and phone numbers
+replaced (`core/src/webaudit/redact.py`); the HTML snapshots live next to the
+screenshots and share their retention. Person names in page text are not
+detected. Page text is untrusted input for Claude Code, and the export says so
+in `CLAUDE.md`.
+
 ## Repository layout
 
 ```
