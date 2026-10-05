@@ -1,0 +1,51 @@
+"""Service configuration from environment variables (WEBAUDIT_*)."""
+
+from __future__ import annotations
+
+import os
+import secrets
+import warnings
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# Model used for the AI design review (stage 4); the Claude "Test key" checks access to it.
+CLAUDE_MODEL = "claude-opus-5-5"
+
+
+def _bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _secret_key() -> str:
+    key = os.environ.get("WEBAUDIT_SECRET_KEY")
+    if key:
+        return key
+    warnings.warn(
+        "WEBAUDIT_SECRET_KEY is not set; using a random key. Sessions and stored API keys "
+        "will not survive a restart. Set it in production.",
+        stacklevel=2,
+    )
+    return secrets.token_urlsafe(48)
+
+
+@dataclass(frozen=True)
+class Settings:
+    database_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_DATABASE_URL", "sqlite+aiosqlite:///./webaudit.db"))
+    secret_key: str = field(default_factory=_secret_key)
+    data_dir: Path = field(default_factory=lambda: Path(os.environ.get("WEBAUDIT_DATA_DIR", "./data")))
+    # Run the audit worker inside the API process (development / single-node).
+    inprocess_worker: bool = field(default_factory=lambda: _bool("WEBAUDIT_INPROCESS_WORKER", True))
+    # Only for local testing against private addresses; never enable in production.
+    allow_private_targets: bool = field(default_factory=lambda: _bool("WEBAUDIT_ALLOW_PRIVATE_TARGETS", False))
+    cookie_secure: bool = field(default_factory=lambda: _bool("WEBAUDIT_COOKIE_SECURE", False))
+    signup_enabled: bool = field(default_factory=lambda: _bool("WEBAUDIT_SIGNUP_ENABLED", True))
+    scan_concurrency: int = field(default_factory=lambda: int(os.environ.get("WEBAUDIT_SCAN_CONCURRENCY", "2")))
+    max_urls_per_audit: int = field(default_factory=lambda: int(os.environ.get("WEBAUDIT_MAX_URLS_PER_AUDIT", "200")))
+    session_days: int = 30
+    # Base URLs of external services (overridable for tests).
+    google_places_base: str = "https://places.googleapis.com/v1"
+    overpass_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_OVERPASS_URL", "https://overpass-api.de/api/interpreter"))
+    photon_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_PHOTON_URL", "https://photon.komoot.io/api/"))

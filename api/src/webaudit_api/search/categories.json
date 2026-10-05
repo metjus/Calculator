@@ -1,0 +1,29 @@
+{
+  "_comment": "Business categories for the search screen. google_type: Places API (New) type used with includedType (null = text query only). osm: OpenStreetMap tag pairs. query: search phrase per country language. Edit freely.",
+  "categories": [
+    {"id": "hair_salon", "label": "Hair salon", "query": {"sk": "kaderníctvo", "cs": "kadeřnictví", "en": "hair salon"}, "google_type": "hair_salon", "osm": [["shop", "hairdresser"]]},
+    {"id": "beauty_salon", "label": "Beauty salon", "query": {"sk": "kozmetický salón", "cs": "kosmetický salon", "en": "beauty salon"}, "google_type": "beauty_salon", "osm": [["shop", "beauty"]]},
+    {"id": "car_repair", "label": "Car repair", "query": {"sk": "autoservis", "cs": "autoservis", "en": "car repair"}, "google_type": "car_repair", "osm": [["shop", "car_repair"]]},
+    {"id": "tyres", "label": "Tyre service", "query": {"sk": "pneuservis", "cs": "pneuservis", "en": "tyre service"}, "google_type": null, "osm": [["shop", "tyres"]]},
+    {"id": "car_wash", "label": "Car wash", "query": {"sk": "autoumyváreň", "cs": "myčka aut", "en": "car wash"}, "google_type": "car_wash", "osm": [["amenity", "car_wash"]]},
+    {"id": "restaurant", "label": "Restaurant", "query": {"sk": "reštaurácia", "cs": "restaurace", "en": "restaurant"}, "google_type": "restaurant", "osm": [["amenity", "restaurant"]]},
+    {"id": "cafe", "label": "Café", "query": {"sk": "kaviareň", "cs": "kavárna", "en": "cafe"}, "google_type": "cafe", "osm": [["amenity", "cafe"]]},
+    {"id": "bakery", "label": "Bakery", "query": {"sk": "pekáreň", "cs": "pekárna", "en": "bakery"}, "google_type": "bakery", "osm": [["shop", "bakery"]]},
+    {"id": "hotel", "label": "Hotel / guesthouse", "query": {"sk": "hotel penzión", "cs": "hotel penzion", "en": "hotel"}, "google_type": "hotel", "osm": [["tourism", "hotel"], ["tourism", "guest_house"]]},
+    {"id": "builder", "label": "Construction company", "query": {"sk": "stavebná firma", "cs": "stavební firma", "en": "construction company"}, "google_type": "general_contractor", "osm": [["craft", "builder"]]},
+    {"id": "electrician", "label": "Electrician", "query": {"sk": "elektrikár", "cs": "elektrikář", "en": "electrician"}, "google_type": "electrician", "osm": [["craft", "electrician"]]},
+    {"id": "plumber", "label": "Plumber", "query": {"sk": "inštalatér", "cs": "instalatér", "en": "plumber"}, "google_type": "plumber", "osm": [["craft", "plumber"]]},
+    {"id": "carpenter", "label": "Carpenter / joinery", "query": {"sk": "stolárstvo", "cs": "truhlářství", "en": "carpenter"}, "google_type": null, "osm": [["craft", "carpenter"]]},
+    {"id": "dentist", "label": "Dentist", "query": {"sk": "zubná ambulancia", "cs": "zubní ordinace", "en": "dentist"}, "google_type": "dentist", "osm": [["amenity", "dentist"], ["healthcare", "dentist"]]},
+    {"id": "physiotherapist", "label": "Physiotherapist", "query": {"sk": "fyzioterapia", "cs": "fyzioterapie", "en": "physiotherapist"}, "google_type": "physiotherapist", "osm": [["healthcare", "physiotherapist"]]},
+    {"id": "veterinary", "label": "Veterinarian", "query": {"sk": "veterinár", "cs": "veterinář", "en": "veterinarian"}, "google_type": "veterinary_care", "osm": [["amenity", "veterinary"]]},
+    {"id": "pharmacy", "label": "Pharmacy", "query": {"sk": "lekáreň", "cs": "lékárna", "en": "pharmacy"}, "google_type": "pharmacy", "osm": [["amenity", "pharmacy"]]},
+    {"id": "optician", "label": "Optician", "query": {"sk": "optika", "cs": "optika", "en": "optician"}, "google_type": null, "osm": [["shop", "optician"]]},
+    {"id": "florist", "label": "Florist", "query": {"sk": "kvetinárstvo", "cs": "květinářství", "en": "florist"}, "google_type": "florist", "osm": [["shop", "florist"]]},
+    {"id": "gym", "label": "Gym / fitness", "query": {"sk": "fitness centrum", "cs": "fitness centrum", "en": "gym"}, "google_type": "gym", "osm": [["leisure", "fitness_centre"]]},
+    {"id": "accountant", "label": "Accountant", "query": {"sk": "účtovníctvo", "cs": "účetnictví", "en": "accountant"}, "google_type": "accounting", "osm": [["office", "accountant"]]},
+    {"id": "lawyer", "label": "Lawyer", "query": {"sk": "advokát", "cs": "advokát", "en": "lawyer"}, "google_type": "lawyer", "osm": [["office", "lawyer"]]},
+    {"id": "real_estate", "label": "Real estate agency", "query": {"sk": "realitná kancelária", "cs": "realitní kancelář", "en": "real estate agency"}, "google_type": "real_estate_agency", "osm": [["office", "estate_agent"]]},
+    {"id": "driving_school", "label": "Driving school", "query": {"sk": "autoškola", "cs": "autoškola", "en": "driving school"}, "google_type": null, "osm": [["amenity", "driving_school"]]}
+  ]
+}

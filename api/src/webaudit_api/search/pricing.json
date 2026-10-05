@@ -1,0 +1,13 @@
+{
+  "_comment": "Google Maps Platform prices change; verify at https://developers.google.com/maps/billing-and-pricing/pricing before relying on the estimate. A Text Search that returns the website field is billed as the Enterprise SKU. Values entered in 2025.",
+  "currency": "USD",
+  "max_pages_per_search": 3,
+  "results_per_page": 20,
+  "skus": {
+    "text_search_enterprise": {
+      "label": "Places API (New) – Text Search Enterprise (includes website)",
+      "per_1000": 35.0,
+      "free_per_month": 1000
+    }
+  }
+}
