@@ -177,7 +177,12 @@ async def _known_companies(db: AsyncSession, workspace_id: int, results: list[di
 
 
 @router.get("/options")
-async def options(user: User = Depends(current_user), db: AsyncSession = Depends(get_db), keybox: KeyBox = Depends(get_keybox)) -> dict:
+async def options(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
+    settings: Settings = Depends(get_settings),
+) -> dict:
     google = await get_key(db, keybox, user.workspace_id, "google_places")
     return {
         "countries": COUNTRIES,
@@ -185,6 +190,7 @@ async def options(user: User = Depends(current_user), db: AsyncSession = Depends
         "google_configured": bool(google),
         "osm_attribution": OSM_ATTRIBUTION,
         "radius_km": {"min": 5, "max": 50, "default": 15},
+        "map_tile_url": settings.map_tile_url,
     }
 
 

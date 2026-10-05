@@ -167,7 +167,13 @@ async def get_site_result(
     site = await db.get(AuditSite, site_id)
     if site is None or site.audit_id != audit_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Website not found")
-    return {"site": _site_out(site).model_dump(), "result": site.result}
+    result = site.result or {}
+    summaries = {c["id"]: c.get("summary", "") for c in result.get("checks", [])}
+    issues = [
+        {**issue, "label": check_label(_CONFIG, issue["check_id"]), "summary": summaries.get(issue["check_id"], "")}
+        for issue in result.get("issues", [])
+    ]
+    return {"site": _site_out(site).model_dump(), "issues": issues, "result": result}
 
 
 @router.get("/{audit_id}/sites/{site_id}/screenshots/{name}")

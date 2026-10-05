@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .db import create_schema, make_engine, make_sessionmaker
-from .routers import audits, auth, search, settings
+from .routers import audits, auth, companies, search, settings
 from .security import CSRF_HEADER, CSRF_VALUE, KeyBox
 from .settings import Settings
 from .worker import AuditWorker
@@ -70,6 +70,7 @@ def create_app(app_settings: Settings | None = None, *, start_worker: bool | Non
     app.include_router(settings.router)
     app.include_router(audits.router)
     app.include_router(search.router)
+    app.include_router(companies.router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

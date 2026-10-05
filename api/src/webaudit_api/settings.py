@@ -49,3 +49,7 @@ class Settings:
     google_places_base: str = "https://places.googleapis.com/v1"
     overpass_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_OVERPASS_URL", "https://overpass-api.de/api/interpreter"))
     photon_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_PHOTON_URL", "https://photon.komoot.io/api/"))
+    # Map preview tiles; the public OSM server is fine for light use, set your own provider for production.
+    map_tile_url: str = field(
+        default_factory=lambda: os.environ.get("WEBAUDIT_MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    )

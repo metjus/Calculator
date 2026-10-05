@@ -10,7 +10,7 @@ which new concerns a hosted, multi-customer product adds.
 | Brief (desktop) | SaaS translation | Why |
 |---|---|---|
 | Python core package, no GUI dependency | **Kept as is** – `core/` (`webaudit`) is imported by the API workers and the CLI | The brief already demanded a UI-free core “for a future SaaS”; we start there |
-| PySide6 / CustomTkinter window | **React + TypeScript (Vite) single-page app**, Tailwind CSS, Lucide icons, charts rendered as SVG | Browser UI is the product; SPA keeps the Python side a pure API; Lucide is the icon set the brief names |
+| PySide6 / CustomTkinter window | **React + TypeScript (Vite) single-page app**, plain CSS on design tokens (`web/DESIGN-SYSTEM.md`), Lucide icons, charts rendered as SVG | Browser UI is the product; SPA keeps the Python side a pure API; Lucide is the icon set the brief names |
 | Background thread, window always responsive | **Job queue + worker processes**; progress streamed to the browser over **Server-Sent Events** | Scans take 30–150 s per site and must survive page reloads and many concurrent users |
 | SQLite | **PostgreSQL** (SQLite only for local dev and tests) | Concurrent writers, row-level tenant isolation, managed backups |
 | Data folder (DB, screenshots, PDFs) movable between PCs | **Object storage** (S3-compatible) for screenshots and PDFs; **workspace export** (ZIP of JSON + files) replaces “move the folder” | No local disk in a hosted product; export keeps the “take your data with you” promise |
@@ -111,7 +111,7 @@ delay, a time budget per site, capped page/link counts, an honest
 | # | Stage | SaaS notes | Status |
 |---|---|---|---|
 | 1 | Core: single-site scan, all non-AI checks, score, CLI | `core/` | **done** |
-| 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | FastAPI skeleton, auth, workspace, job queue, SSE progress, SPA shell in the chosen direction. Cookie bars + Cloudflare detection already in core | direction mockups published ([DESIGN-DIRECTIONS.md](DESIGN-DIRECTIONS.md)) – **waiting for your choice** |
+| 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | `api/` + `web/` in direction B “Petrol” – see *Stage 2 as built* below | **done** – waiting for your feedback |
 | 3 | Audit dashboard | Postgres schema, metrics, charts, table, site detail | |
 | 4 | Screenshots + AI design review, competitor comparison | screenshots already captured by core; Claude review + cost estimate | |
 | 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright in the worker; texts already in `texts.json` | |
@@ -120,11 +120,50 @@ delay, a time budget per site, capped page/link counts, an honest
 | 8 | Archive, duplicates, re-contact, retention | scheduled jobs | |
 | 9 | Polish, real-site testing, deployment | Docker, CI, EU hosting instead of PyInstaller | |
 
+## Stage 2 as built
+
+What exists now, and where it deliberately differs from the target picture above:
+
+- **api** (`api/src/webaudit_api`): FastAPI with opaque session cookies
+  (`wa_session`, httpOnly, SameSite=Lax, argon2 passwords) and a CSRF header
+  (`X-Requested-With: webaudit`) required on every mutating `/api` call. Each
+  user owns one workspace; every query filters by `workspace_id`.
+- **Keys**: PageSpeed, Claude and Google Places keys are Fernet-encrypted with a
+  key derived from `WEBAUDIT_SECRET_KEY`, returned only as `last4`, and testable
+  (`POST /api/settings/keys/{service}/test`). Envelope encryption via a KMS is a
+  stage 9 task.
+- **Queue and worker**: audits and their sites are rows; `AuditWorker` claims the
+  oldest queued audit (`FOR UPDATE SKIP LOCKED` on Postgres), runs
+  `Scanner.scan_many()` and writes every `ProgressEvent` as an `audit_events` row.
+  It runs inside the API process by default (`WEBAUDIT_INPROCESS_WORKER`) or
+  separately as `webaudit-worker`. Running audits are re-queued on restart.
+- **Progress**: `GET /api/audits/{id}/events` is an SSE stream that polls
+  `audit_events` (resumes with `Last-Event-ID`). Works on SQLite and Postgres;
+  `LISTEN/NOTIFY` is a later optimisation. Stop sets `cancel_requested`; sites in
+  progress finish, the rest become `cancelled`.
+- **Storage**: screenshots live under `WEBAUDIT_DATA_DIR`, served only through an
+  authorised endpoint that confines paths to that folder. Object storage comes
+  with deployment (stage 9).
+- **Business search** (`/api/search/*`): areas from Photon (OSM), businesses from
+  Google Places Text Search (New, field mask without phone numbers) and Overpass,
+  merged by domain, then by name + distance. Only `place_id` is stored for Google
+  results, OSM names may be stored (ODbL attribution in the UI). Every search
+  shows a cost estimate first; usage is counted per workspace and month.
+  Templates save the area + category.
+- **Customers** (`/api/companies`): every audited or searched business, with
+  “no website” leads; the CRM in stage 7 adds statuses, notes and reminders.
+- **web**: React 19 + Vite, routes `/`, `/search`, `/audits`, `/audits/new`,
+  `/audits/:id`, `/customers`, `/settings`, `/login`, `/signup`. Self-hosted
+  IBM Plex Sans (no Google Fonts request, GDPR). Light and dark themes.
+
+Configuration is environment-only (`WEBAUDIT_*`, see `api/README.md`); nothing
+secret is read from files in the repository.
+
 ## Repository layout
 
 ```
 core/      Python package `webaudit` – scanning, checks, scoring, texts (stage 1)
 docs/      brief (SPEC.sk.md), this document
-api/       FastAPI service            (stage 2)
-web/       React SPA                  (stage 2, after the visual direction is chosen)
+api/       FastAPI service `webaudit_api` – auth, workspaces, audits, worker, search (stage 2)
+web/       React SPA in direction B “Petrol” (stage 2); FastAPI serves web/dist in production
 ```

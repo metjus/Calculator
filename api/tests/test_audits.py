@@ -55,6 +55,7 @@ async def test_create_run_and_stream_audit(user_client: httpx.AsyncClient, app, 
 
     full = (await user_client.get(f"/api/audits/{audit_id}/sites/{legacy['id']}")).json()
     assert full["result"]["score"]["total"] == legacy["score"]
+    assert full["issues"][0]["label"] and full["issues"][0]["summary"] and full["issues"][0]["impact"] > 0
 
     # The SSE stream replays the history and ends once the audit is finished.
     stream = await user_client.get(f"/api/audits/{audit_id}/events")
@@ -85,6 +86,9 @@ async def test_csv_with_no_website_rows(user_client: httpx.AsyncClient, app) -> 
     assert companies["Pekáreň bez webu"].url is None and companies["Pekáreň bez webu"].project == "Kaderníctva Trnava"
     assert companies["Kaderníctvo X"].domain == "kadernictvo-x.sk"
     assert site.competitors == ["https://a.sk/"]
+
+    listed = (await user_client.get("/api/companies")).json()
+    assert {c["name"]: c["has_website"] for c in listed} == {"Kaderníctvo X": True, "Pekáreň bez webu": False}
 
 
 async def test_only_invalid_input_is_rejected(user_client: httpx.AsyncClient) -> None:

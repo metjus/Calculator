@@ -1,0 +1,105 @@
+/* Design tokens – direction B "Petrol" (see web/DESIGN-SYSTEM.md).
+   Components reference roles, never raw hex. Dark mode is designed, not inverted. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #f3f1ec;
+  --surface: #fffdf9;
+  --surface-2: #f7f4ee;
+  --border: #e2ddd4;
+  --border-strong: #cbc4b8;
+  --text: #1d1b18;
+  --text-2: #57524a;
+  --muted: #6e685f;
+  --accent: #0b6e72;
+  --accent-hover: #08585b;
+  --accent-weak: #e1efee;
+  --on-accent: #ffffff;
+  --track: #ebe7df;
+  --neutral: #cdc7bc;
+  --overlay: rgba(29, 27, 24, 0.35);
+
+  /* score categories – validated: adjacent categories differ in lightness */
+  --crit: #9b1111;
+  --weak: #cb5a1a;
+  --ok: #daa932;
+  --good: #17a478;
+
+  /* feedback */
+  --danger: #9b1111;
+  --danger-weak: #f6e3e1;
+  --warning: #8a4a12;
+  --warning-weak: #f8ead9;
+  --success: #0f7a58;
+  --success-weak: #dff1e9;
+  --info-weak: #e1efee;
+
+  /* sidebar (graphite in both modes) */
+  --side: #1e2220;
+  --side-text: #cfd4d0;
+  --side-muted: #949b96;
+  --side-hover: #2b302d;
+  --side-active: #0b6e72;
+  --side-active-text: #ffffff;
+
+  --shadow-pop: 0 10px 28px rgba(29, 27, 24, 0.14);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #101211;
+  --surface: #181b1a;
+  --surface-2: #1e2221;
+  --border: #2a2f2d;
+  --border-strong: #3a403d;
+  --text: #eeebe4;
+  --text-2: #c2bcb2;
+  --muted: #9a948a;
+  --accent: #4fb8b3;
+  --accent-hover: #6cc8c3;
+  --accent-weak: rgba(79, 184, 179, 0.15);
+  --on-accent: #06201f;
+  --track: #242826;
+  --neutral: #3d4240;
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  --crit: #c92a4a;
+  --weak: #ec8329;
+  --ok: #f5d862;
+  --good: #2fb08a;
+
+  --danger: #f08a96;
+  --danger-weak: rgba(201, 42, 74, 0.18);
+  --warning: #f3b16b;
+  --warning-weak: rgba(236, 131, 41, 0.16);
+  --success: #5fd0a8;
+  --success-weak: rgba(47, 176, 138, 0.16);
+  --info-weak: rgba(79, 184, 179, 0.14);
+
+  --side: #0a0c0b;
+  --side-text: #cfd4d0;
+  --side-muted: #8a918c;
+  --side-hover: #1b1f1d;
+  --side-active: #4fb8b3;
+  --side-active-text: #06201f;
+
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+:root {
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --control-h: 44px; /* touch target minimum */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --fast: 120ms;
+}

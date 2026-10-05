@@ -122,6 +122,7 @@ async def test_options_and_areas_are_country_restricted(user_client: httpx.Async
     assert {"code": "sk", "name": "Slovakia", "language": "sk"} in options["countries"]
     assert any(c["id"] == "hair_salon" for c in options["categories"])
     assert options["google_configured"] is False
+    assert "{z}" in options["map_tile_url"]
 
     areas = (await user_client.get("/api/search/areas", params={"country": "sk", "q": "Trnava"})).json()
     assert [a["label"] for a in areas] == ["Trnava, okres Trnava, Trnavský kraj, Slovensko", "okres Trnava, Trnavský kraj, Slovensko"]

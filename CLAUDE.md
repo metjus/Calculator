@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A website-audit SaaS for web designers (brief in Slovak: `docs/SPEC.sk.md`; SaaS translation and stage plan: `docs/ARCHITECTURE.md`). The brief is built **in stages, showing the user each result before continuing**; check the stage table in `docs/ARCHITECTURE.md` before starting new work. The brief also requires showing UI design proposals before writing any UI code.
 
-Only `core/` exists so far (stage 1). `api/` (FastAPI) and `web/` (React SPA) come in stage 2.
+Stages 1–2 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`).
 
 ## Commands (run from `core/`)
 
@@ -19,7 +19,16 @@ python -m venv ../.venv && ../.venv/bin/pip install -e ".[dev]"   # dev deps inc
 ../.venv/bin/ruff check src tests && ../.venv/bin/ruff format --check src tests   # lint + format (config in pyproject)
 ```
 
-Cloud sessions run `.claude/hooks/session-start.sh`, which creates `/home/user/Calculator/.venv` (repo-root `.venv`), installs `core[dev]` and exports `WEBAUDIT_CHROMIUM_PATH`.
+API and web:
+
+```bash
+cd api && ../.venv/bin/pytest                          # API tests (~4 s), reuse core fixture sites
+../.venv/bin/ruff check src tests && ../.venv/bin/ruff format --check src tests
+cd web && npm run build                                # tsc --noEmit + vite build → web/dist (served by the API)
+WEBAUDIT_SECRET_KEY=dev ../.venv/bin/webaudit-api      # :8000; `npm run dev` in web/ proxies /api to it
+```
+
+Cloud sessions run `.claude/hooks/session-start.sh`, which creates `/home/user/Calculator/.venv` (repo-root `.venv`), installs `core[dev]` and `api[dev]`, runs `npm install` in `web/` and exports `WEBAUDIT_CHROMIUM_PATH`.
 
 - Browser checks need Chromium. In cloud containers Playwright's own browser is not installed; set `WEBAUDIT_CHROMIUM_PATH=/opt/pw-browsers/chromium` (`tests/conftest.py` does this automatically). Browser tests skip when Chromium is missing.
 - These containers usually have no general internet access. Use the local fixture sites instead of real websites: `python tests/serve_fixtures.py /tmp/fx` serves them and writes `ca.pem` and `urls.txt`; then run `SSL_CERT_FILE=/tmp/fx/ca.pem webaudit scan --allow-private $(cat /tmp/fx/urls.txt)`.
@@ -51,6 +60,16 @@ Invariants that span files:
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.
 - **Progress for the UI** flows through `ProgressEvent` (`on_event` callback): `step` events, log events with levels ok/warn/error, and a final `done` event carrying the `ScanResult`.
 - **UI language is English;** client-facing text (texts.json, future PDFs) is SK/CS/EN, in formal address, hedged wording, with no invented numbers.
+
+## API and web (`api/src/webaudit_api`, `web/src`)
+
+- Every query is scoped by `user.workspace_id`; endpoints that take an id load the row and compare its workspace (404 otherwise).
+- Mutating `/api` requests need the header `X-Requested-With: webaudit` (CSRF guard in `main.py`); `web/src/lib/api.ts` adds it.
+- API keys are only stored encrypted (`security.KeyBox`) and returned as `last4`. Never log or return a decrypted key.
+- The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.
+- Google Places results: store only `place_id`. OSM names may be stored; show the ODbL attribution wherever OSM data appears.
+- External services in tests: `app.state.search_transport` (httpx `MockTransport`); never call real Google/OSM from tests.
+- UI code uses the token roles in `web/src/styles/tokens.css` and components in `web/src/components/ui.tsx`; no raw hex in components (Leaflet shapes are the documented exception).
 
 ## Tests
 

@@ -34,3 +34,9 @@ fixtures-out/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local API data (SQLite, screenshots)
+*.db
+*.db-wal
+*.db-shm
+data/
