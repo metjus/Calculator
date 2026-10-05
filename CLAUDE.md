@@ -59,5 +59,6 @@ Invariants that span files:
 - `legacy` is a 2010-style site.
 - `cloudflare` returns a challenge page.
 - `robots` disallows all crawling.
+- `attacker` + `internal` exercise the SSRF boundary: the attacker page tries to reach `internal` through redirects, a WebSocket and fetch. `FixtureServers.hits` records what each site received.
 
-`conftest.py` runs them on separate loopback IPs (127.0.0.1–4), because link checks treat the same host as "same site". Scans in tests pass `allow_private=True`, a `trusted_transport`, and the `FAST` config overrides (no politeness delay, no external link checks).
+`conftest.py` runs them on separate loopback IPs (127.0.0.1–6), because link checks treat the same host as "same site". Scans in tests pass `allow_private=True`, a `trusted_transport`, and the `FAST` config overrides (no politeness delay, no external link checks).

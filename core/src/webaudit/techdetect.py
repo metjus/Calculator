@@ -38,6 +38,12 @@ def _generator(ctx: ScanContext) -> str:
 
 
 def detect_cms(ctx: ScanContext) -> tuple[str | None, str | None, dict | None]:
+    if "cms" not in ctx.memo:
+        ctx.memo["cms"] = _detect_cms(ctx)
+    return ctx.memo["cms"]
+
+
+def _detect_cms(ctx: ScanContext) -> tuple[str | None, str | None, dict | None]:
     html = ctx.home.text[:600_000]
     rendered = ctx.desktop.html[:600_000] if ctx.desktop and ctx.desktop.ok else ""
     generator = _generator(ctx)
@@ -67,6 +73,12 @@ def detect_cms(ctx: ScanContext) -> tuple[str | None, str | None, dict | None]:
 
 
 def detect_libraries(ctx: ScanContext) -> list[LibraryInfo]:
+    if "libraries" not in ctx.memo:
+        ctx.memo["libraries"] = _detect_libraries(ctx)
+    return ctx.memo["libraries"]
+
+
+def _detect_libraries(ctx: ScanContext) -> list[LibraryInfo]:
     urls = [str(s.get("src") or "") for s in ctx.static_dom.find_all("script")]
     urls += [str(link.get("href") or "") for link in ctx.static_dom.find_all("link")]
     urls += [r.get("url", "") for r in ctx.all_requests() if r.get("type") in ("script", "stylesheet")]

@@ -48,6 +48,7 @@ class ScanContext:
     mobile: RenderData | None = None
     pagespeed: dict[str, dict[str, Any]] = field(default_factory=dict)  # strategy -> API JSON
     pagespeed_note: str | None = None
+    memo: dict[str, Any] = field(default_factory=dict)  # derived values shared by several checks
 
     @property
     def final_url(self) -> str:

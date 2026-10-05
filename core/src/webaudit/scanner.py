@@ -24,6 +24,7 @@ import httpx
 from . import checks as check_registry
 from . import pagespeed, protection, scoring, techdetect
 from .browser import Browser, BrowserUnavailable, safe_filename
+from .checks.trust import find_contact_link, social_profiles
 from .config import Config
 from .context import RenderData, ScanContext
 from .dom import anchors, normalize_link, parse, same_site
@@ -274,8 +275,6 @@ class Scanner:
             got = await self.client.fetch(origin + "/favicon.ico", read_body=False)
             ctx.favicon_found = got.ok and "html" not in got.headers.get("content-type", "")
 
-        from .checks.trust import find_contact_link
-
         contact_url = find_contact_link(ctx.static_dom, base, self.config.signatures["contact_link_keywords"])
         if contact_url and contact_url.rstrip("/") != base.rstrip("/"):
             got = await self.client.fetch(contact_url)
@@ -294,8 +293,6 @@ class Scanner:
             if link.rstrip("/") == base.rstrip("/") or urlsplit(link).path.lower().endswith(SKIP_LINK_EXTENSIONS):
                 continue
             internal.append(link)
-        from .checks.trust import social_profiles
-
         external = [u for u in social_profiles(ctx) if urlsplit(u).path not in ("", "/")]
         targets = internal[: limits["max_internal_links_checked"]] + external[: limits["max_external_links_checked"]]
         if not targets:

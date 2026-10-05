@@ -20,9 +20,9 @@ def check(check_id: str, area: Area) -> Callable[[Callable[..., CheckResult]], C
 
 
 def result(
-    ctx_id: str, area: Area, status: Status, summary: str = "", value: object = None, evidence: list[str] | None = None
+    check_id: str, area: Area, status: Status, summary: str = "", value: object = None, evidence: list[str] | None = None
 ) -> CheckResult:
-    return CheckResult(id=ctx_id, area=area, status=status, summary=summary, value=value, evidence=(evidence or [])[:10])
+    return CheckResult(id=check_id, area=area, status=status, summary=summary, value=value, evidence=(evidence or [])[:10])
 
 
 def plural(count: int, singular: str, plural_form: str | None = None) -> str:
