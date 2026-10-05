@@ -26,7 +26,10 @@ cd api && ../.venv/bin/pytest                          # API tests (~4 s), reuse
 ../.venv/bin/ruff check src tests && ../.venv/bin/ruff format --check src tests
 cd web && npm run build                                # tsc --noEmit + vite build → web/dist (served by the API)
 WEBAUDIT_SECRET_KEY=dev ../.venv/bin/webaudit-api      # :8000; `npm run dev` in web/ proxies /api to it
+docker compose up --build                              # whole app in one image (Dockerfile at the repo root)
 ```
+
+The Docker image is based on `mcr.microsoft.com/playwright/python` (Chromium included); its tag and the `playwright==` pin in the Dockerfile must match. In cloud containers the Debian and Playwright CDNs are blocked, so test image builds with that base and `docker build --network host` plus the agent-proxy CA (see `/root/.ccr/README.md`).
 
 Cloud sessions run `.claude/hooks/session-start.sh`, which creates `/home/user/Calculator/.venv` (repo-root `.venv`), installs `core[dev]` and `api[dev]`, runs `npm install` in `web/` and exports `WEBAUDIT_CHROMIUM_PATH`.
 

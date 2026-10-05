@@ -107,3 +107,15 @@ async def test_claude_key_check_maps_errors(monkeypatch: pytest.MonkeyPatch) -> 
     assert await keys.test_claude("k") == (True, "Key is valid")
     FakeClient.exc = anthropic.AuthenticationError("bad", response=httpx.Response(401, request=request), body=None)
     assert await keys.test_claude("k") == (False, "Key is not valid")
+
+
+def test_secret_key_is_kept_in_the_data_folder(tmp_path, monkeypatch) -> None:
+    from webaudit_api.settings import Settings
+
+    monkeypatch.delenv("WEBAUDIT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("WEBAUDIT_DATA_DIR", str(tmp_path / "data"))
+    first = Settings().secret_key
+    assert (tmp_path / "data" / "secret.key").stat().st_mode & 0o777 == 0o600
+    assert Settings().secret_key == first  # survives a restart
+    monkeypatch.setenv("WEBAUDIT_SECRET_KEY", "from-env")
+    assert Settings().secret_key == "from-env"

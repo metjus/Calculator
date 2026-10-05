@@ -19,16 +19,39 @@ def _bool(name: str, default: bool) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+SECRET_FILE = "secret.key"
+
+
 def _secret_key() -> str:
+    """WEBAUDIT_SECRET_KEY, else a key kept in the data folder (created on first start).
+
+    The data folder is outside Git (.gitignore), so a self-hosted install keeps its
+    sessions and encrypted API keys across restarts without any setup.
+    """
     key = os.environ.get("WEBAUDIT_SECRET_KEY")
     if key:
         return key
-    warnings.warn(
-        "WEBAUDIT_SECRET_KEY is not set; using a random key. Sessions and stored API keys "
-        "will not survive a restart. Set it in production.",
-        stacklevel=2,
-    )
-    return secrets.token_urlsafe(48)
+    path = Path(os.environ.get("WEBAUDIT_DATA_DIR", "./data")) / SECRET_FILE
+    try:
+        if path.is_file():
+            stored = path.read_text("utf-8").strip()
+            if stored:
+                return stored
+        path.parent.mkdir(parents=True, exist_ok=True)
+        key = secrets.token_urlsafe(48)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(key)
+        return key
+    except FileExistsError:
+        return path.read_text("utf-8").strip()  # another process (the worker) created it first
+    except OSError as exc:
+        warnings.warn(
+            f"WEBAUDIT_SECRET_KEY is not set and {path} is not writable ({exc}); using a random key. "
+            "Sessions and stored API keys will not survive a restart.",
+            stacklevel=2,
+        )
+        return secrets.token_urlsafe(48)
 
 
 @dataclass(frozen=True)

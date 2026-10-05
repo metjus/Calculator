@@ -11,7 +11,6 @@ and the customer list. It imports the scanning core (`../core`, package
 # from the repository root
 python -m venv .venv
 .venv/bin/pip install -e "core[dev]" -e "api[dev]"
-export WEBAUDIT_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
 .venv/bin/webaudit-api                     # http://127.0.0.1:8000, API docs at /api/docs
 
 # the web app, in a second terminal (proxies /api to :8000)
@@ -19,15 +18,16 @@ cd web && npm install && npm run dev       # http://127.0.0.1:5173
 ```
 
 For production, build the SPA once (`cd web && npm run build`); the API then
-serves `web/dist` itself (override with `WEBAUDIT_WEB_DIST`).
+serves `web/dist` itself (override with `WEBAUDIT_WEB_DIST`). The repository's
+`Dockerfile` / `docker-compose.yml` do all of this in one image (see the root README).
 
 ## Configuration (environment only)
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `WEBAUDIT_SECRET_KEY` | random per start (warning) | Encrypts stored API keys. **Set it**, or keys and sessions are lost on restart. Never commit it. |
+| `WEBAUDIT_SECRET_KEY` | generated once into `<data dir>/secret.key` | Encrypts stored API keys. On a server set it explicitly and keep a copy; never commit it. Losing it makes stored API keys unreadable. |
 | `WEBAUDIT_DATABASE_URL` | `sqlite+aiosqlite:///./webaudit.db` | Use `postgresql+asyncpg://…` in production |
-| `WEBAUDIT_DATA_DIR` | `./data` | Screenshots |
+| `WEBAUDIT_DATA_DIR` | `./data` | Screenshots, page snapshots and the generated `secret.key` |
 | `WEBAUDIT_INPROCESS_WORKER` | `true` | Run the audit worker inside the API; set `false` and start `webaudit-worker` separately |
 | `WEBAUDIT_SCAN_CONCURRENCY` | `2` | Websites scanned at the same time per audit |
 | `WEBAUDIT_MAX_URLS_PER_AUDIT` | `200` | |

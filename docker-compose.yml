@@ -1,0 +1,24 @@
+# Start:  docker compose up --build     then open http://localhost:8000 and create your account.
+# Stop:   docker compose down            (your data stays in the "webaudit-data" volume)
+#
+# Settings can go into a .env file next to this one (it is ignored by Git), e.g.
+#   WEBAUDIT_SECRET_KEY=...        optional; otherwise a key is generated once and kept in the volume
+#   WEBAUDIT_SIGNUP_ENABLED=false  after you have created your own account
+services:
+  webaudit:
+    build: .
+    image: webaudit:latest
+    # Only reachable from this computer. To serve other people, put it behind HTTPS
+    # (see README.md → "Run it on a server") instead of opening the port.
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - webaudit-data:/data
+    shm_size: "1gb"
+    restart: unless-stopped
+
+volumes:
+  webaudit-data:
