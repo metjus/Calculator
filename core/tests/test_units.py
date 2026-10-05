@@ -169,7 +169,9 @@ def test_cloudflare_challenge_detected() -> None:
     sigs = Config.load().signatures
     found = detect(403, {"server": "cloudflare", "cf-ray": "1"}, "<title>Just a moment...</title>", sigs)
     assert found and found.provider == "cloudflare"
-    found_200 = detect(200, {"server": "cloudflare", "cf-ray": "1"}, "<div id='challenge-platform'></div>", sigs)
+    found_200 = detect(
+        200, {"server": "cloudflare", "cf-ray": "1"}, "<title>Just a moment...</title><div id=challenge-platform></div>", sigs
+    )
     assert found_200 and found_200.provider == "cloudflare"
 
 
@@ -211,3 +213,27 @@ def test_version_compare() -> None:
     assert not version_below("3.7.1", "3.5.0")
     assert version_below("6.4", "6.4.1")
     assert not version_below("10", "10")
+
+
+def test_normal_cloudflare_page_with_bot_script_not_flagged() -> None:
+    sigs = Config.load().signatures
+    page = '<html><h1>Kaderníctvo</h1><script src="/cdn-cgi/challenge-platform/h/b/scripts/jsd/main.js"></script></html>'
+    assert detect(200, {"server": "cloudflare", "cf-ray": "1"}, page, sigs) is None
+    assert detect(403, {"server": "cloudflare", "cf-ray": "1"}, page, sigs) is not None
+
+
+def test_map_links_match_host_not_substring() -> None:
+    from webaudit.checks.trust import is_map_url
+
+    rules = Config.load().signatures["map_links"]
+    for url in (
+        "https://www.google.com/maps/embed?pb=1",
+        "https://www.google.sk/maps/place/Trnava",
+        "https://maps.google.cz/?q=Brno",
+        "https://maps.app.goo.gl/abc",
+        "https://mapy.cz/s/xyz",
+        "https://en.mapy.cz/zakladni",
+    ):
+        assert is_map_url(url, rules), url
+    for url in ("https://elsewhere.com/x", "https://www.google.com/search?q=maps", "https://notmapy.cz/", "https://google.evil.com/maps"):
+        assert not is_map_url(url, rules), url

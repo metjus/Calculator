@@ -45,6 +45,7 @@ Data flow for one site (`scanner.py`, `Scanner._scan`):
 Invariants that span files:
 
 - **A check id must be listed in three places:** its `@check(...)` decorator, `defaults/scoring.json` (area + weight; unlisted checks are informational) and `defaults/texts.json` (SK/CS/EN `label/problem/impact/solution`, optional `warn` override). `tests/test_units.py` asserts the texts exist.
+- **SSRF boundary:** user URLs go through `NetGuard.check_url` on every httpx hop; Chromium is launched with `egress.GuardedProxy` as its proxy (the route handler is only a fast-fail — Playwright doesn't route redirect hops or WebSockets). Never launch a browser or HTTP client that bypasses these. `test_browser_cannot_reach_internal_hosts` must keep passing.
 - **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails, and the e2e test asserts this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.

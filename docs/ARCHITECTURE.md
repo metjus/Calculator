@@ -77,13 +77,20 @@ delay, a time budget per site, capped page/link counts, an honest
 3. **Result reuse** – a site audited by anyone in the last N hours can be served
    from cache for the raw checks (scores are recomputed with each workspace’s
    weights).
-4. **SSRF protection** – customers type URLs our servers fetch. The core refuses
-   non-http(s) schemes, credentials in URLs and any host resolving to
-   loopback/private/link-local/reserved ranges (incl. `169.254.169.254`), on
-   every redirect hop and for every request the headless browser makes.
-   Because DNS rebinding can defeat in-process checks, **workers egress only
-   through a proxy that enforces the same rule** (e.g. Smokescreen) and have no
-   route to internal services.
+4. **SSRF protection** – customers type URLs our servers fetch, and the pages
+   they point to run JavaScript in our browser. The core refuses non-http(s)
+   schemes, credentials in URLs and any host resolving to
+   loopback/private/link-local/reserved ranges (incl. `169.254.169.254`):
+   - the HTTP client checks every redirect hop (`fetch.py`);
+   - **Chromium sends all traffic through an in-process guarded proxy**
+     (`egress.py`) that resolves each host once, refuses non-public addresses
+     and connects to exactly the address it checked. This covers what
+     Playwright route handlers cannot see (redirect hops, WebSockets) and DNS
+     rebinding for the browser; a regression test drives a hostile page that
+     tries all of these.
+   The HTTP client still resolves DNS itself, so production workers must
+   additionally have **no network route to internal services** (network
+   policy, or an egress proxy such as Smokescreen, plus IMDSv2 on AWS).
 5. **Abuse limits** – per-workspace rate limits, max URLs per batch, and the
    “Do not contact” list blocks re-auditing without confirmation (as in the brief).
 
@@ -104,7 +111,7 @@ delay, a time budget per site, capped page/link counts, an honest
 | # | Stage | SaaS notes | Status |
 |---|---|---|---|
 | 1 | Core: single-site scan, all non-AI checks, score, CLI | `core/` | **done** |
-| 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | FastAPI skeleton, auth, workspace, job queue, SSE progress, SPA shell in the chosen direction. Cookie bars + Cloudflare detection already in core | direction mockups published – **waiting for your choice** |
+| 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | FastAPI skeleton, auth, workspace, job queue, SSE progress, SPA shell in the chosen direction. Cookie bars + Cloudflare detection already in core | direction mockups published ([DESIGN-DIRECTIONS.md](DESIGN-DIRECTIONS.md)) – **waiting for your choice** |
 | 3 | Audit dashboard | Postgres schema, metrics, charts, table, site detail | |
 | 4 | Screenshots + AI design review, competitor comparison | screenshots already captured by core; Claude review + cost estimate | |
 | 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright in the worker; texts already in `texts.json` | |

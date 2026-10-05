@@ -1,5 +1,5 @@
 {
-  "_comment": "Detection patterns. Regexes are case-insensitive and run against HTML, header values or resource URLs. Review the CMS version limits about twice a year.",
+  "_comment": "Detection patterns. Regexes are case-insensitive and run against HTML, header values or resource URLs. Review the CMS version limits about twice a year. map_links: host matches the domain or any subdomain; a host ending with '.' matches any top-level domain (google. = google.sk, www.google.com ...); path is a prefix.",
   "cms": [
     {
       "name": "WordPress",
@@ -449,21 +449,49 @@
     "dialog/feed",
     "pin/create"
   ],
-  "map_patterns": [
-    "google.com/maps",
-    "maps.google.",
-    "goo.gl/maps",
-    "maps.app.goo.gl",
-    "mapy.cz",
-    "mapy.com",
-    "api.mapy",
-    "openstreetmap.org",
-    "waze.com",
-    "bing.com/maps",
-    "here.com",
+  "map_links": [
+    {
+      "host": "google.",
+      "path": "/maps"
+    },
+    {
+      "host": "maps.google."
+    },
+    {
+      "host": "goo.gl",
+      "path": "/maps"
+    },
+    {
+      "host": "maps.app.goo.gl"
+    },
+    {
+      "host": "mapy.cz"
+    },
+    {
+      "host": "mapy.com"
+    },
+    {
+      "host": "openstreetmap.org"
+    },
+    {
+      "host": "waze.com"
+    },
+    {
+      "host": "bing.com",
+      "path": "/maps"
+    },
+    {
+      "host": "wego.here.com"
+    },
+    {
+      "host": "maps.apple.com"
+    }
+  ],
+  "map_classes": [
     "leaflet-container",
     "gm-style",
-    "mapboxgl-map"
+    "mapboxgl-map",
+    "ol-viewport"
   ],
   "contact_link_keywords": [
     "kontakt",
@@ -646,13 +674,15 @@
       "server": "cloudflare",
       "body": [
         "challenge-platform",
-        "cf-browser-verification",
-        "cf_chl_opt",
-        "<title>just a moment...</title>",
-        "attention required! | cloudflare",
         "checking your browser before accessing",
         "cf-error-details",
         "enable javascript and cookies to continue"
+      ],
+      "challenge_body": [
+        "<title>just a moment...</title>",
+        "cf_chl_opt",
+        "cf-browser-verification",
+        "<title>attention required! | cloudflare</title>"
       ]
     },
     "sucuri": {

@@ -6,6 +6,7 @@ import pytest
 from conftest import needs_browser
 
 from webaudit import Config, Scanner, SiteState, Status
+from webaudit.netguard import NetGuard
 from webaudit.scanner import ProgressEvent
 
 FAST = {
@@ -144,3 +145,16 @@ async def test_browser_scan_measures_rendered_page(sites, trusted_transport, tmp
     for path in modern.screenshots.values():
         assert (tmp_path / path.split("/")[-1]).exists()
     assert modern.score.total > legacy.score.total + 30
+
+
+@needs_browser
+async def test_browser_cannot_reach_internal_hosts(sites) -> None:
+    """Redirects, WebSockets and fetches from a hostile page must not reach private addresses."""
+    guard = NetGuard(is_public=lambda ip: ip != "127.0.0.6")  # treat only the "internal" server as private
+    async with Scanner(Config.load(overrides=FAST), guard=guard) as scanner:
+        if scanner.browser is None:
+            pytest.skip(f"browser unavailable: {scanner.browser_error}")
+        result = await scanner.scan(sites.urls["attacker"])
+    assert result.state is SiteState.OK, result.state_reason
+    assert "/redir-frame" in sites.hits["attacker"]  # the browser really rendered the page
+    assert sites.hits["internal"] == []

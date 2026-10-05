@@ -278,7 +278,7 @@ class PoliteClient:
                     retry = await self.fetch(
                         current,
                         method=method,
-                        respect_robots=False,
+                        respect_robots=respect_robots,
                         max_bytes=max_bytes,
                         verify=False,
                         read_body=read_body,

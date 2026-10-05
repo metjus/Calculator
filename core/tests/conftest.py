@@ -17,16 +17,22 @@ if "WEBAUDIT_CHROMIUM_PATH" not in os.environ and Path("/opt/pw-browsers/chromiu
     os.environ["WEBAUDIT_CHROMIUM_PATH"] = "/opt/pw-browsers/chromium"
 
 
-def _handler_for(routes: dict, origin_ref: dict) -> type[BaseHTTPRequestHandler]:
+def _handler_for(routes: dict, ref: dict) -> type[BaseHTTPRequestHandler]:
+    def fill(text: str) -> str:
+        for key, value in {"{origin}": ref["origin"], **ref["shared"]}.items():
+            text = text.replace(key, value)
+        return text
+
     class Handler(BaseHTTPRequestHandler):
         def _respond(self, with_body: bool) -> None:
+            ref["hits"].append(self.path)
             path = self.path.split("?", 1)[0]
             status, headers, body = routes.get(path, (404, {"Content-Type": "text/html"}, "<h1>Not found</h1>"))
             if isinstance(body, str):
-                body = body.replace("{origin}", origin_ref["origin"]).encode("utf-8")
+                body = fill(body).encode("utf-8")
             self.send_response(status)
             for name, value in headers.items():
-                self.send_header(name, value)
+                self.send_header(name, fill(value))
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if with_body:
@@ -47,11 +53,14 @@ def _handler_for(routes: dict, origin_ref: dict) -> type[BaseHTTPRequestHandler]
 class FixtureServers:
     def __init__(self) -> None:
         self.urls: dict[str, str] = {}
+        self.hits: dict[str, list[str]] = {}  # request paths each site received
+        self.placeholders: dict[str, str] = {}  # shared {name} -> value substitutions
         self.servers: list[ThreadingHTTPServer] = []
         self.ca = None
 
     def start(self, name: str, host: str, tls_context: ssl.SSLContext | None = None) -> str:
-        origin_ref = {"origin": ""}
+        origin_ref = {"origin": "", "hits": [], "shared": self.placeholders}
+        self.hits[name] = origin_ref["hits"]
         server = ThreadingHTTPServer((host, 0), _handler_for(SITES[name], origin_ref))
         scheme = "http"
         if tls_context is not None:
@@ -84,6 +93,9 @@ def sites() -> Iterator[FixtureServers]:
     servers.start("legacy", "127.0.0.2")
     servers.start("cloudflare", "127.0.0.3")
     servers.start("robots", "127.0.0.4")
+    internal = servers.start("internal", "127.0.0.6").rstrip("/")
+    servers.placeholders.update({"{internal}": internal, "{internal_hostport}": internal.split("//", 1)[1]})
+    servers.start("attacker", "127.0.0.5")
     yield servers
     servers.stop()
 

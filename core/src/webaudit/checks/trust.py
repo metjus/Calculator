@@ -7,7 +7,7 @@ they exist. Phone numbers and e-mail addresses never leave this module.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -89,13 +89,32 @@ def clickable_phone(ctx: ScanContext):
     return na("trust.clickable_phone", A, "No phone number found")
 
 
-def _has_map(soup: BeautifulSoup | None, patterns: list[str]) -> bool:
+def _host_matches(host: str, rule_host: str) -> bool:
+    """``mapy.cz`` matches mapy.cz and its subdomains; ``google.`` matches google.<any TLD> and subdomains."""
+    labels = host.lower().strip(".").split(".")
+    if rule_host.endswith("."):
+        wanted = rule_host.strip(".").split(".")
+        # the rule's labels must sit directly before a single top-level label
+        return len(labels) > len(wanted) and labels[-1 - len(wanted) : -1] == wanted
+    wanted = rule_host.split(".")
+    return labels[-len(wanted) :] == wanted
+
+
+def is_map_url(url: str, rules: list[dict[str, str]]) -> bool:
+    parts = urlsplit(url)
+    host, path = parts.hostname or "", parts.path or "/"
+    return any(_host_matches(host, r["host"]) and path.startswith(r.get("path", "/")) for r in rules)
+
+
+def _has_map(soup: BeautifulSoup | None, base_url: str, rules: list[dict[str, str]], classes: list[str]) -> bool:
     if soup is None:
         return False
     for tag in soup.find_all(["iframe", "a", "img", "div"]):
-        haystack = " ".join(str(tag.get(attr) or "") for attr in ("src", "href", "data-src")).lower()
-        haystack += " " + class_and_id(tag)
-        if any(p in haystack for p in patterns):
+        for attr in ("src", "href", "data-src"):
+            value = tag.get(attr)
+            if value and is_map_url(urljoin(base_url, str(value)), rules):
+                return True
+        if any(c in class_and_id(tag) for c in classes):
             return True
     return False
 
@@ -112,8 +131,8 @@ def _has_address(soup: BeautifulSoup | None) -> bool:
 
 @check("trust.address_map", A)
 def address_map(ctx: ScanContext):
-    patterns = ctx.signatures["map_patterns"]
-    has_map = _has_map(ctx.dom, patterns) or _has_map(ctx.contact_dom, patterns)
+    rules, classes = ctx.signatures["map_links"], ctx.signatures["map_classes"]
+    has_map = _has_map(ctx.dom, ctx.final_url, rules, classes) or _has_map(ctx.contact_dom, ctx.final_url, rules, classes)
     has_address = _has_address(ctx.dom) or _has_address(ctx.contact_dom)
     value = {"map": has_map, "address": has_address}
     if has_map:

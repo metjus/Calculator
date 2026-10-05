@@ -29,17 +29,20 @@ def detect(status: int | None, headers: dict[str, str], body: str, signatures: d
     """Return a Protection when the response looks like a firewall block or challenge."""
     lowered = body[:60_000].lower()
     server = headers.get("server", "").lower()
+    blocked = status in BLOCKING_STATUSES
     for provider, rules in signatures["protection"].items():
         evidence = _header_hits(headers, rules.get("headers", []))
         if rules.get("server") and rules["server"] in server:
             evidence.append(f"server: {server}")
-        body_hits = [marker for marker in rules.get("body", []) if marker in lowered]
         if headers.get("cf-mitigated", "").lower() == "challenge" and provider == "cloudflare":
             return Protection(provider=provider, evidence=evidence + ["cf-mitigated: challenge"])
-        blocked = status in BLOCKING_STATUSES
-        # A challenge page can also come back with 200; the body markers decide then.
-        if (evidence and blocked) or (body_hits and (blocked or evidence)):
-            return Protection(provider=provider, evidence=(evidence + [f"page contains “{m}”" for m in body_hits])[:6])
+        # "challenge_body" markers appear only on interstitial pages; "body" markers can also
+        # appear on normal pages (e.g. Cloudflare injects challenge-platform scripts), so they
+        # count only together with a blocking status.
+        strong = [m for m in rules.get("challenge_body", []) if m in lowered]
+        weak = [m for m in rules.get("body", []) if m in lowered]
+        if (blocked and (evidence or strong or weak)) or (strong and evidence):
+            return Protection(provider=provider, evidence=(evidence + [f"page contains “{m}”" for m in strong + weak])[:6])
     return None
 
 

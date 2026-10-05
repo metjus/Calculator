@@ -16,6 +16,7 @@ from typing import Any
 
 from .config import Config
 from .context import RenderData
+from .egress import GuardedProxy
 from .fetch import user_agent
 from .netguard import BlockedTarget, NetGuard
 from .protection import detect_in_title
@@ -270,6 +271,7 @@ class Browser:
         self.cfg = config.scanner["browser"]
         self._pw = None
         self._browser = None
+        self._proxy = GuardedProxy(guard)
 
     async def start(self) -> None:
         try:
@@ -278,10 +280,18 @@ class Browser:
             raise BrowserUnavailable("Playwright is not installed (pip install 'webaudit[browser]')") from exc
         self._pw = await async_playwright().start()
         executable = os.environ.get("WEBAUDIT_CHROMIUM_PATH") or None
+        # All browser traffic (incl. redirects, WebSockets and loopback) goes through the
+        # guarded proxy, which is the real SSRF boundary; the route handler only fails fast.
+        proxy_url = await self._proxy.start()
         try:
-            self._browser = await self._pw.chromium.launch(executable_path=executable, args=["--disable-dev-shm-usage"])
+            self._browser = await self._pw.chromium.launch(
+                executable_path=executable,
+                args=["--disable-dev-shm-usage"],
+                proxy={"server": proxy_url},
+            )
         except Exception as exc:  # noqa: BLE001 - surface a readable reason
             await self._pw.stop()
+            await self._proxy.close()
             self._pw = None
             first_line = str(exc).strip().splitlines()[0] if str(exc).strip() else exc.__class__.__name__
             raise BrowserUnavailable(f"Chromium could not start: {first_line[:200]}") from exc
@@ -291,6 +301,7 @@ class Browser:
             await self._browser.close()
         if self._pw is not None:
             await self._pw.stop()
+        await self._proxy.close()
         self._browser = self._pw = None
 
     async def _guard_route(self, route: Any) -> None:

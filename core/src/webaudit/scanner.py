@@ -66,12 +66,13 @@ class Scanner:
         limiter: RateLimiter | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         on_event: EventHandler | None = None,
+        guard: NetGuard | None = None,
     ) -> None:
         self.config = config or Config.load()
         self.pagespeed_key = pagespeed_key
         self.use_browser = use_browser and self.config.scanner["browser"]["enabled"]
         self.screenshots_dir = Path(screenshots_dir) if screenshots_dir else None
-        self.guard = NetGuard(allow_private=allow_private)
+        self.guard = guard or NetGuard(allow_private=allow_private)
         self.client = PoliteClient(self.config, self.guard, limiter=limiter, transport=transport)
         self.on_event = on_event
         self.browser: Browser | None = None

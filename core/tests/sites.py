@@ -79,6 +79,19 @@ JQUERY_183 = "window.jQuery = window.$ = {fn: {jquery: '1.8.3'}};"
 CLOUDFLARE_CHALLENGE = """<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title></head>
 <body><div id="challenge-platform"></div><noscript>Enable JavaScript and cookies to continue</noscript></body></html>"""
 
+# A hostile page: once the browser renders it, it tries to reach an internal
+# service through redirects (iframe, image), a WebSocket and a direct fetch.
+ATTACKER_HOME = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Regular business site</title></head>
+<body><h1>Welcome</h1>
+<iframe src="/redir-frame" width="600" height="200" title="frame"></iframe>
+<img src="/redir-img" alt="photo" width="10" height="10">
+<script>
+try { new WebSocket("ws://{internal_hostport}/ws"); } catch (e) {}
+fetch("{internal}/fetch", {mode: "no-cors"}).catch(() => {});
+</script>
+</body></html>"""
+
 # path -> (status, headers, body)
 Route = tuple[int, dict[str, str], bytes | str]
 
@@ -110,6 +123,14 @@ SITES: dict[str, dict[str, Route]] = {
             {"Content-Type": "text/html", "Server": "cloudflare", "CF-RAY": "8a1b2c3d4e5f-VIE", "cf-mitigated": "challenge"},
             CLOUDFLARE_CHALLENGE,
         ),
+    },
+    "attacker": {
+        "/": (200, HTML, ATTACKER_HOME),
+        "/redir-frame": (302, {"Location": "{internal}/secret"}, ""),
+        "/redir-img": (302, {"Location": "{internal}/img.png"}, ""),
+    },
+    "internal": {
+        "/secret": (200, HTML, "<h1>INTERNAL SECRET</h1>"),
     },
     "robots": {
         "/": (200, HTML, MODERN_HOME),
