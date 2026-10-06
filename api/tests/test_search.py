@@ -220,9 +220,13 @@ async def test_templates_and_validation(user_client: httpx.AsyncClient) -> None:
 
 def test_overpass_query_shapes() -> None:
     circle = Overpass.build_query(Area("x", 48.0, 17.0, radius_km=10), [["shop", "hairdresser"]], None)
-    assert "(around:10000,48.000000,17.000000)" in circle and 'nwr["shop"="hairdresser"]' in circle
+    assert circle.startswith("[out:json][timeout:20][maxsize:67108864];")  # light enough to be accepted when busy
+    assert "(47.91017,16.86575,48.08983,17.13425)" in circle and 'nwr["shop"="hairdresser"](47.91017' in circle
+    assert "around" not in circle
     region = Overpass.build_query(Area("okres", 48.0, 17.0, osm_relation=388265), [["shop", "hairdresser"]], "Kader")
     assert "area(id:3600388265)" in region and '["name"~"Kader",i]' in region
+    bbox_only = Overpass.build_query(Area("kraj", 48.0, 17.0, bbox=(17.0, 48.0, 18.0, 49.0)), [["shop", "beauty"]], None)
+    assert "(48.00000,17.00000,49.00000,18.00000)" in bbox_only  # a region without a relation uses its box
 
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
@@ -257,6 +261,16 @@ async def test_overpass_falls_back_to_the_next_server(app, user_client: httpx.As
     assert result["sources"]["osm"] == 0
     (warning,) = result["warnings"]
     assert "overpass-api.de: HTTP 503" in warning and "maps.mail.ru: ConnectTimeout" in warning
+
+    def too_big(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json={"elements": [], "remark": "runtime error: Query run out of memory using about 64 MB of RAM."})
+
+    app.state.search_transport = httpx.MockTransport(too_big)
+    calls.clear()
+    result = (await user_client.post("/api/search/run", json=body)).json()
+    assert result["warnings"] == ["This area is too large for an OpenStreetMap search; choose a smaller radius or a district"]
+    assert len(calls) == 1  # no point asking the other servers
 
 
 async def test_map_tiles_are_fetched_once_and_cached(app, settings, user_client: httpx.AsyncClient, make_client) -> None:

@@ -154,7 +154,10 @@ class Overpass:
     query goes to each of ``urls`` in turn until one answers.
     """
 
-    TIMEOUT = httpx.Timeout(10.0, read=45.0)  # the query itself may run 25 s on the server
+    # Overpass turns queries away with 504 when it is busy, the more readily the more time and
+    # memory they reserve; its docs advise lowering timeout and maxsize (default 180 s, 512 MiB).
+    SETTINGS = "[out:json][timeout:20][maxsize:67108864]"
+    TIMEOUT = httpx.Timeout(10.0, read=35.0)  # the query itself may run 20 s on the server
 
     def __init__(self, client: httpx.AsyncClient, urls: str | list[str]) -> None:
         self.client = client
@@ -166,7 +169,10 @@ class Overpass:
         if area.is_region and area.osm_relation:
             prefix, scope = f"area(id:{OSM_AREA_OFFSET + int(area.osm_relation)})->.a;", "(area.a)"
         else:
-            prefix, scope = "", f"(around:{int((area.radius_km or 10) * 1000)},{area.lat:.6f},{area.lon:.6f})"
+            # A bounding box is Overpass's cheapest filter (``around`` on ways is costly);
+            # merge() then drops what lies outside the circle.
+            min_lon, min_lat, max_lon, max_lat = area.rectangle()
+            prefix, scope = "", f"({min_lat:.5f},{min_lon:.5f},{max_lat:.5f},{max_lon:.5f})"
         selectors = []
         if name_regex:
             safe = name_regex.replace("\\", "").replace('"', "")
@@ -174,7 +180,7 @@ class Overpass:
                 selectors.append(f'nwr["name"~"{safe}",i]["{key}"]{scope};')
         for key, value in tags:
             selectors.append(f'nwr["{key}"="{value}"]{scope};')
-        return f"[out:json][timeout:25];{prefix}({''.join(selectors)});out center tags 400;"
+        return f"{Overpass.SETTINGS};{prefix}({''.join(selectors)});out center tags 400;"
 
     async def search(self, area: Area, tags: list[list[str]], name_regex: str | None, category_label: str | None) -> list[Business]:
         elements = await self._query(self.build_query(area, tags, name_regex))
@@ -218,6 +224,9 @@ class Overpass:
                     log.warning("Overpass %s answered something other than JSON: %.200s", host, response.text)
                     continue
                 remark = data.get("remark") or ""
+                if "out of memory" in remark:  # every server would say the same
+                    log.warning("Overpass %s: %s", host, remark)
+                    raise ProviderError("This area is too large for an OpenStreetMap search; choose a smaller radius or a district")
                 if not data.get("elements") and ("runtime error" in remark or "timed out" in remark):
                     failures.append(f"{host}: {remark[:80]}")
                     log.warning("Overpass %s: %s", host, remark)
