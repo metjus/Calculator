@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .files import InstanceLock, backup_database, data_dir, web_dist
+from .files import InstanceLock, app_dir, backup_database, data_dir, web_dist
 
 log = logging.getLogger("webaudit.desktop")
 WINDOW_SIZE = (1366, 880)
@@ -66,10 +66,20 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def build_label() -> str:
+    """“0.3.1 · e78468b”: the Windows build writes the commit to build.txt next to the exe."""
+    try:
+        commit = (app_dir() / "build.txt").read_text("utf-8").strip()[:12]
+    except OSError:
+        commit = ""
+    return f"{__version__} · {commit}" if commit else __version__
+
+
 def configure_environment(folder: Path, token: str) -> None:
     """Settings for the API (read by webaudit_api.settings.Settings) in desktop mode."""
     os.environ.update(
         {
+            "WEBAUDIT_BUILD": build_label(),
             "WEBAUDIT_LOCAL_MODE": "1",
             "WEBAUDIT_LOCAL_TOKEN": token,
             "WEBAUDIT_DATA_DIR": str(folder),
@@ -171,6 +181,20 @@ def _open_second_window(lock: InstanceLock, folder: Path) -> int:
 # ---------------------------------------------------------------- self-test
 
 
+def _probe(call: Callable[[], Any]) -> dict[str, Any]:
+    try:
+        response = call()
+    except Exception as exc:  # noqa: BLE001 - informational only
+        return {"error": f"{exc.__class__.__name__}: {exc}"}
+    kind = response.headers.get("content-type", "")
+    if kind.startswith("image/"):
+        return {"status": response.status_code, "type": kind, "bytes": len(response.content)}
+    data = response.json() if "json" in kind else response.text[:300]
+    if isinstance(data, dict) and "results" in data:
+        data = {"found": len(data["results"]), "warnings": data.get("warnings")}
+    return {"status": response.status_code, "body": data}
+
+
 def self_test(server: LocalServer, token: str, target: str, report: Path) -> int:
     """Audit one website through the real API, as the window would, and write a JSON report."""
     import httpx
@@ -206,6 +230,11 @@ def self_test(server: LocalServer, token: str, target: str, report: Path) -> int
                 results["issues"] = [f"{i['label']} (−{i['impact']:.1f})" for i in full["issues"][:10]]
                 export = client.get(f"/api/audits/{audit_id}/sites/{site['id']}/claude-export")
                 record("claude_export", export.status_code == 200 and len(export.content) > 1000, len(export.content))
+            # Public OSM services: reported, but they may be busy, so they don't fail the build.
+            results["map_tile"] = _probe(lambda: client.get("/api/search/tiles/7/70/44"))
+            area = {"label": "Trnava", "lat": 48.3774, "lon": 17.5872}
+            body = {"country": "sk", "area": area, "radius_km": 5, "category_id": "hair_salon", "sources": ["osm"]}
+            results["osm_search"] = _probe(lambda: client.post("/api/search/run", json=body, timeout=180))
     except Exception as exc:  # noqa: BLE001 - the report says what broke
         record("exception", False, f"{exc.__class__.__name__}: {exc}")
     results["ok"] = all(c["ok"] for c in results["checks"].values()) and bool(results["checks"])
@@ -232,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     folder = data_dir(args.data)
     folder.mkdir(parents=True, exist_ok=True)
     log_path = _setup_logging(folder)
-    log.info("Web Audit %s starting, data folder %s", __version__, folder)
+    log.info("Web Audit %s starting, data folder %s", build_label(), folder)
 
     lock = InstanceLock(folder)
     if not lock.acquire():

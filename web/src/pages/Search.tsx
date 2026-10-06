@@ -303,7 +303,7 @@ export function Search() {
           </form>
         </Card>
         <Card title="Area preview" meta={form.area ? (form.mode === "region" ? "whole area" : `${form.radius} km radius`) : undefined}>
-          <MapPreview tileUrl={opts.map_tile_url} attribution={opts.map_attribution} area={form.area} mode={form.mode} radiusKm={form.radius} />
+          <MapPreview tileUrl={opts.map_tile_url} attribution={opts.map_attribution} source={opts.map_source} area={form.area} mode={form.mode} radiusKm={form.radius} />
         </Card>
       </div>
 

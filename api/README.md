@@ -38,10 +38,11 @@ serves `web/dist` itself (override with `WEBAUDIT_WEB_DIST`). The repository's
 | `WEBAUDIT_OVERPASS_URL` | three public Overpass servers | OSM business search; comma-separated, tried in order until one answers |
 | `WEBAUDIT_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Upstream for map preview tiles. The browser loads them from `/api/search/tiles/…`, which fetches each tile once with the app's User-Agent and caches it in `<data>/tiles` (OSM blocks direct use without one). Use your own tile provider for production traffic |
 | `WEBAUDIT_MAP_ATTRIBUTION` | OpenStreetMap contributors | Attribution shown on the map; change it with the tile provider |
+| `WEBAUDIT_BUILD` | API version | Version label in the sidebar; the desktop launcher sets it to its version and commit |
 | `WEBAUDIT_HOST`, `WEBAUDIT_PORT` | `127.0.0.1`, `8000` | |
 | `WEBAUDIT_CHROMIUM_PATH` | Playwright's browser | Chromium for screenshots and browser checks |
 
-API keys for PageSpeed, Claude and Google Places are entered per workspace in
+API keys for PageSpeed, Claude, Google Places and Mapy.com (map tiles instead of OSM) are entered per workspace in
 **Settings**, stored encrypted and never returned in full.
 
 ## Tests

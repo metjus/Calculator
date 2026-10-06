@@ -122,7 +122,8 @@ async def test_options_and_areas_are_country_restricted(user_client: httpx.Async
     assert {"code": "sk", "name": "Slovakia", "language": "sk"} in options["countries"]
     assert any(c["id"] == "hair_salon" for c in options["categories"])
     assert options["google_configured"] is False
-    assert options["map_tile_url"] == "/api/search/tiles/{z}/{x}/{y}" and "OpenStreetMap" in options["map_attribution"]
+    assert options["map_tile_url"] == "/api/search/tiles/{z}/{x}/{y}?source=osm" and options["map_source"] == "osm"
+    assert "OpenStreetMap" in options["map_attribution"]
 
     areas = (await user_client.get("/api/search/areas", params={"country": "sk", "q": "Trnava"})).json()
     assert [a["label"] for a in areas] == ["Trnava, okres Trnava, Trnavský kraj, Slovensko", "okres Trnava, Trnavský kraj, Slovensko"]
@@ -278,8 +279,40 @@ async def test_map_tiles_are_fetched_once_and_cached(app, settings, user_client:
     again = await user_client.get("/api/search/tiles/11/1123/711")
     assert again.content == PNG and len(tile_calls) == 1  # served from the cache
 
-    assert (await user_client.get("/api/search/tiles/11/1124/711")).status_code == 502  # a block page is never served as a tile
+    blocked = await user_client.get("/api/search/tiles/11/1124/711")  # a block page is never served as a tile
+    assert blocked.status_code == 502 and blocked.json()["detail"] == "tile.openstreetmap.org refused the map tiles (HTTP 403)"
     assert (await user_client.get("/api/search/tiles/2/4/0")).status_code == 404
     assert (await user_client.get("/api/search/tiles/19/0/0")).status_code == 404
     async with make_client() as anonymous:
         assert (await anonymous.get("/api/search/tiles/11/1123/711")).status_code == 401
+
+
+async def test_map_tiles_from_mapy_with_a_saved_key(app, settings, user_client: httpx.AsyncClient) -> None:
+    mapy_calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        mapy_calls.append(request)
+        if request.url.host == "api.mapy.com" and request.url.params.get("apikey") == "mapy-key-1234":
+            return httpx.Response(200, content=PNG, headers={"Content-Type": "image/png"})
+        return httpx.Response(401, json={"message": "invalid key"})
+
+    app.state.search_transport = httpx.MockTransport(handler)
+    await user_client.put("/api/settings/keys/mapy", json={"key": "mapy-key-1234"})
+    tested = (await user_client.post("/api/settings/keys/mapy/test")).json()
+    assert tested["test_ok"] is True and tested["last4"] == "1234"
+    assert mapy_calls[-1].url.path == "/v1/maptiles/basic/256/0/0/0"
+
+    options = (await user_client.get("/api/search/options")).json()
+    assert options["map_source"] == "mapy" and options["map_tile_url"].endswith("?source=mapy")
+    assert "Seznam.cz" in options["map_attribution"] and "mapy-key" not in json.dumps(options)
+
+    tile = await user_client.get("/api/search/tiles/11/1123/711", params={"source": "mapy"})
+    assert tile.status_code == 200 and tile.content == PNG
+    assert mapy_calls[-1].url.path == "/v1/maptiles/basic/256/11/1123/711"
+    assert not (settings.data_dir / "tiles").exists()  # Mapy.com tiles are not stored
+
+    await user_client.put("/api/settings/keys/mapy", json={"key": "wrong-key"})
+    refused = await user_client.get("/api/search/tiles/11/1123/711")
+    assert refused.status_code == 502 and refused.json()["detail"] == "Mapy.com did not accept the key saved in Settings"
+    assert "wrong-key" not in refused.text
+    assert (await user_client.post("/api/settings/keys/mapy/test")).json()["test_message"] == "Key is not valid"

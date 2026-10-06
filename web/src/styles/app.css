@@ -157,6 +157,11 @@ h3 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.side-version {
+  font-size: 11px;
+  color: var(--side-muted);
+  padding: 4px 6px 0;
+}
 .side-btn {
   display: flex;
   align-items: center;
@@ -897,6 +902,10 @@ table.table {
   font-family: inherit;
   background: var(--surface-2);
 }
+.map-logo img {
+  display: block;
+  height: 20px;
+}
 [data-theme="dark"] .map .leaflet-tile-pane {
   filter: brightness(0.72) saturate(0.7);
 }
@@ -983,4 +992,7 @@ table.table {
   color: var(--on-overlay);
   font-size: 13px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.map + .banner {
+  margin-top: 12px;
 }

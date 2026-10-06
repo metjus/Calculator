@@ -98,6 +98,7 @@ export function Shell({ children, followUps = 0 }: { children: ReactNode; follow
               </div>
             </>
           )}
+          {me?.version && <div className="side-version">Web Audit {me.version}</div>}
         </div>
       </aside>
       <main className="main" id="main">

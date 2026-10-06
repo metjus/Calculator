@@ -60,7 +60,7 @@ async def test_api_keys_are_encrypted_masked_and_testable(user_client: httpx.Asy
         row = await db.scalar(select(ApiKey))
         assert secret not in row.encrypted and app.state.keybox.decrypt(row.encrypted) == secret
 
-    async def fake_test(service: str, key: str, base: str) -> tuple[bool, str]:
+    async def fake_test(service: str, key: str, settings: object, transport: object = None) -> tuple[bool, str]:
         assert key == secret and service == "pagespeed"
         return True, "Key is valid"
 

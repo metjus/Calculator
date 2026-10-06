@@ -94,3 +94,7 @@ class Settings:
             "WEBAUDIT_MAP_ATTRIBUTION", '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         )
     )
+    # Used instead when the workspace saved a Mapy.com key in Settings (free monthly allowance).
+    mapy_tile_url: str = "https://api.mapy.com/v1/maptiles/basic/256/{z}/{x}/{y}"
+    # Shown in the sidebar so a screenshot tells which build is running; the desktop launcher sets it.
+    build: str | None = field(default_factory=lambda: os.environ.get("WEBAUDIT_BUILD") or None)

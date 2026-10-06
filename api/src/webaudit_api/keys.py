@@ -10,9 +10,9 @@ from webaudit import pagespeed
 
 from .models import ApiKey
 from .security import KeyBox
-from .settings import CLAUDE_MODEL
+from .settings import CLAUDE_MODEL, Settings
 
-SERVICES = ("pagespeed", "claude", "google_places")
+SERVICES = ("pagespeed", "claude", "google_places", "mapy")
 
 
 async def get_key(db: AsyncSession, keybox: KeyBox, workspace_id: int, service: str) -> str | None:
@@ -64,9 +64,28 @@ async def test_google_places(key: str, base_url: str) -> tuple[bool, str]:
     return False, f"Google answered {response.status_code}"
 
 
-async def test_key(service: str, key: str, google_places_base: str) -> tuple[bool, str]:
+async def test_mapy(key: str, tile_url: str, transport: httpx.AsyncBaseTransport | None = None) -> tuple[bool, str]:
+    # One world tile costs one credit of the free monthly allowance.
+    url = tile_url.replace("{z}", "0").replace("{x}", "0").replace("{y}", "0")
+    try:
+        async with httpx.AsyncClient(timeout=20.0, transport=transport) as client:
+            response = await client.get(url, params={"apikey": key})
+    except httpx.HTTPError:
+        return False, "Could not reach Mapy.com, try again"
+    if response.status_code == 200:
+        return True, "Key is valid"
+    if response.status_code in (401, 403):
+        return False, "Key is not valid"
+    if response.status_code == 429:
+        return False, "The key's monthly allowance is used up"
+    return False, f"Mapy.com answered {response.status_code}"
+
+
+async def test_key(service: str, key: str, settings: Settings, transport: httpx.AsyncBaseTransport | None = None) -> tuple[bool, str]:
     if service == "pagespeed":
         return await pagespeed.test_key(key)
     if service == "claude":
         return await test_claude(key)
-    return await test_google_places(key, google_places_base)
+    if service == "mapy":
+        return await test_mapy(key, settings.mapy_tile_url, transport)
+    return await test_google_places(key, settings.google_places_base)

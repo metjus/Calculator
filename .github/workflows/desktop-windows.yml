@@ -77,7 +77,11 @@ jobs:
         run: python -m pytest -q
 
       - name: Package with PyInstaller
-        run: pyinstaller desktop/WebAudit.spec --noconfirm
+        shell: pwsh
+        run: |
+          pyinstaller desktop/WebAudit.spec --noconfirm
+          # Shown in the app's sidebar, so a screenshot tells which build is running.
+          Set-Content -Path dist\WebAudit\build.txt -Value $env:GITHUB_SHA.Substring(0, 7) -NoNewline
 
       - name: Self-test the exe on a real website (Edge, no window)
         shell: pwsh

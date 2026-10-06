@@ -17,7 +17,7 @@ def _client(app, host: str = "127.0.0.1:8765") -> httpx.AsyncClient:
 
 async def test_token_sign_in_and_quit(settings) -> None:
     quit_calls: list[bool] = []
-    local = dataclasses.replace(settings, local_mode=True, local_token="launch-token", signup_enabled=False)
+    local = dataclasses.replace(settings, local_mode=True, local_token="launch-token", signup_enabled=False, build="0.3.1 · e78468b")
     app = create_app(local, start_worker=False, on_quit=lambda: quit_calls.append(True))
     async with app.router.lifespan_context(app), _client(app) as client:
         assert (await client.get("/api/auth/me")).status_code == 401
@@ -26,7 +26,7 @@ async def test_token_sign_in_and_quit(settings) -> None:
         signed_in = await client.get("/api/auth/local", params={"token": "launch-token"})
         assert signed_in.status_code == 303 and signed_in.headers["location"] == "/"
         me = (await client.get("/api/auth/me")).json()
-        assert me["local"] is True and me["workspace_name"] == "My workspace"
+        assert me["local"] is True and me["workspace_name"] == "My workspace" and me["version"] == "0.3.1 · e78468b"
 
         # A second launch signs in as the same local user.
         await client.get("/api/auth/local", params={"token": "launch-token"})

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import __version__
 from ..deps import current_user, get_db, get_settings
 from ..models import AuthSession, User, Workspace
 from ..security import MIN_PASSWORD_LENGTH, SESSION_COOKIE, hash_password, hash_token, new_session_token, verify_password
@@ -50,11 +51,13 @@ class Me(BaseModel):
     workspace_id: int
     workspace_name: str
     local: bool = False  # desktop app: no sign-out, a Quit button instead
+    version: str = __version__  # shown in the sidebar; the desktop build adds its own version and commit
 
 
 def _me(user: User, settings: Settings | None = None) -> Me:
     local = bool(settings and settings.local_mode)
-    return Me(email=user.email, workspace_id=user.workspace_id, workspace_name=user.workspace.name, local=local)
+    version = (settings.build if settings else None) or __version__
+    return Me(email=user.email, workspace_id=user.workspace_id, workspace_name=user.workspace.name, local=local, version=version)
 
 
 async def _start_session(response: Response, db: AsyncSession, user: User, settings: Settings) -> None:

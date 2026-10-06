@@ -64,6 +64,13 @@ def test_backups_keep_the_newest_ten(tmp_path) -> None:
     assert files.backup_database(tmp_path / "missing.db", tmp_path / "backups") is None
 
 
+def test_build_label_names_the_commit(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(app, "app_dir", lambda: tmp_path)
+    assert app.build_label() == app.__version__
+    (tmp_path / "build.txt").write_text("e78468b\n", "utf-8")
+    assert app.build_label() == f"{app.__version__} · e78468b"
+
+
 def test_environment_points_the_api_at_the_data_folder(tmp_path, monkeypatch) -> None:
     for key in ("WEBAUDIT_LOCAL_MODE", "WEBAUDIT_LOCAL_TOKEN", "WEBAUDIT_DATA_DIR", "WEBAUDIT_DATABASE_URL", "WEBAUDIT_SIGNUP_ENABLED"):
         monkeypatch.delenv(key, raising=False)
