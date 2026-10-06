@@ -56,6 +56,25 @@ def data_dir(override: str | None = None) -> Path:
     return base / APP_NAME / "data"
 
 
+def unblock_downloaded(folder: Path) -> int:
+    """Remove the “downloaded from the internet” mark from the program's DLLs; returns how many.
+
+    Windows Explorer marks every file unzipped from a downloaded ZIP (a ``Zone.Identifier``
+    stream). .NET then refuses to load Python.Runtime.dll, and the program window (WebView2
+    through pythonnet) fails with “Failed to resolve Python.Runtime.Loader.Initialize”.
+    """
+    if sys.platform != "win32":
+        return 0
+    removed = 0
+    for path in folder.rglob("*.dll"):
+        try:
+            os.remove(f"{path}:Zone.Identifier")  # NTFS alternate data stream
+            removed += 1
+        except OSError:
+            pass  # not marked, or not allowed to change it
+    return removed
+
+
 class InstanceLock:
     """Keeps a second copy of the program from opening the same data folder."""
 

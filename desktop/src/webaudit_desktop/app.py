@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .files import InstanceLock, app_dir, backup_database, data_dir, web_dist
+from .files import InstanceLock, app_dir, backup_database, bundle_dir, data_dir, frozen, unblock_downloaded, web_dist
 
 log = logging.getLogger("webaudit.desktop")
 WINDOW_SIZE = (1366, 880)
@@ -178,6 +178,34 @@ def _open_second_window(lock: InstanceLock, folder: Path) -> int:
     return 0
 
 
+def _replace_other_version(lock: InstanceLock, timeout: float = 45) -> bool:
+    """A different build holds the data folder (e.g. the old one after an update): ask it to quit.
+
+    Without this, starting the new WebAudit.exe only opened another window of the old,
+    still running copy. Returns True once this copy holds the lock.
+    """
+    import httpx
+
+    info = lock.running_instance()
+    if not info or info.get("version") == build_label():
+        return False
+    log.info("stopping the running Web Audit %s to start %s", info.get("version", "(older)"), build_label())
+    try:
+        with httpx.Client(base_url=f"http://127.0.0.1:{info['port']}", headers={"X-Requested-With": "webaudit"}, timeout=10) as client:
+            client.get("/api/auth/local", params={"token": info["token"]})
+            client.post("/api/local/quit")
+    except (httpx.HTTPError, KeyError) as exc:
+        log.warning("could not ask the running copy to quit: %r", exc)
+        return False
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if lock.acquire():
+            return True
+        time.sleep(0.5)
+    log.warning("the running copy did not stop within %s s", timeout)
+    return False
+
+
 # ---------------------------------------------------------------- self-test
 
 
@@ -263,8 +291,13 @@ def main(argv: list[str] | None = None) -> int:
     log_path = _setup_logging(folder)
     log.info("Web Audit %s starting, data folder %s", build_label(), folder)
 
+    if frozen():  # before any window opens, including a second one
+        unblocked = unblock_downloaded(bundle_dir())
+        if unblocked:
+            log.info("removed the downloaded-from-internet mark from %d program files", unblocked)
+
     lock = InstanceLock(folder)
-    if not lock.acquire():
+    if not lock.acquire() and not _replace_other_version(lock):
         return _open_second_window(lock, folder)
     try:
         try:
@@ -289,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
 
         server = LocalServer(args.port or free_port(), request_quit)
         server.start()
-        lock.publish(port=server.port, token=token, pid=os.getpid())
+        lock.publish(port=server.port, token=token, pid=os.getpid(), version=build_label())
         try:
             if args.self_test:
                 return self_test(server, token, args.self_test, Path(args.report) if args.report else folder / "selftest.json")

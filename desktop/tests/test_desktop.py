@@ -117,3 +117,47 @@ def test_windowless_self_test_audits_a_site(tmp_path, monkeypatch, legacy_site) 
     # The next start backs the database up first.
     app.main(["--data", str(data), "--self-test", legacy_site, "--report", str(report)])
     assert len(list((data / "backups").glob("webaudit-*.db"))) == 1
+
+
+def test_a_new_build_replaces_an_older_running_copy(tmp_path, monkeypatch) -> None:
+    """After an update, starting the new exe stops the old one instead of opening its window."""
+    for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    import threading
+
+    data = tmp_path / "data"
+    old_lock = files.InstanceLock(data)
+    assert old_lock.acquire()
+    app.configure_environment(data, "old-token")
+    stopped = threading.Event()
+
+    def quit_old() -> None:
+        old_lock.release()
+        stopped.set()
+
+    old = app.LocalServer(app.free_port(), quit_old)
+    old.start()
+    old_lock.publish(port=old.port, token="old-token", pid=1)  # an older build: no version recorded
+    try:
+        new_lock = files.InstanceLock(data)
+        if sys.platform != "win32":
+            assert not new_lock.acquire()
+        assert app._replace_other_version(new_lock, timeout=20)
+        assert stopped.is_set()
+        new_lock.publish(port=1, token="t", pid=2, version=app.build_label())
+        assert not app._replace_other_version(files.InstanceLock(data), timeout=1)  # same build: leave it running
+        new_lock.release()
+    finally:
+        old.stop()
+
+
+def test_unblock_removes_the_downloaded_mark(tmp_path) -> None:
+    dll = tmp_path / "pythonnet" / "Python.Runtime.dll"
+    dll.parent.mkdir()
+    dll.write_bytes(b"MZ")
+    if sys.platform != "win32":
+        assert files.unblock_downloaded(tmp_path) == 0
+        return
+    Path(f"{dll}:Zone.Identifier").write_text("[ZoneTransfer]\nZoneId=3\n")  # what Explorer adds when unzipping
+    assert files.unblock_downloaded(tmp_path) == 1
+    assert not Path(f"{dll}:Zone.Identifier").exists() and dll.read_bytes() == b"MZ"

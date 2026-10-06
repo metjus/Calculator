@@ -96,8 +96,12 @@ jobs:
 
       - name: Open the program window for 30 seconds (smoke test)
         shell: pwsh
-        continue-on-error: true
         run: |
+          # Mark the DLLs as downloaded, as Explorer does when unzipping the release ZIP;
+          # the program must still open its window (it removes the mark at start).
+          Get-ChildItem dist\WebAudit\_internal -Recurse -Filter *.dll | ForEach-Object {
+            Set-Content -Path $_.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+          }
           $data = Join-Path $env:RUNNER_TEMP "window-data"
           $p = Start-Process -FilePath "dist\WebAudit\WebAudit.exe" -ArgumentList "--data", "`"$data`"" -PassThru
           Start-Sleep -Seconds 30
@@ -105,6 +109,7 @@ jobs:
           $log | Select-Object -Last 40
           if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
           if ($log -match "could not open the program window") { throw "window did not open (see log above)" }
+          if (-not ($log -match "downloaded-from-internet mark")) { throw "the downloaded mark was not removed" }
 
       - name: Upload the program
         uses: actions/upload-artifact@v4
