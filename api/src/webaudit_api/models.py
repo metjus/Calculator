@@ -88,6 +88,10 @@ class Company(Base):
     osm_id: Mapped[str | None] = mapped_column(String(64), nullable=True)  # e.g. "node/123" (ODbL data)
     do_not_contact: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # The user's decision after checking a website the scanner could not score by hand
+    # ("contact" = worth contacting, "skip" = not worth it); stage 7 turns it into a status.
+    manual_check: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    manual_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @property
     def has_website(self) -> bool:

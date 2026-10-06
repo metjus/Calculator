@@ -104,6 +104,14 @@ export function Customers() {
                               <Tag color="var(--danger)">Do not contact</Tag>
                             </>
                           )}
+                          {c.manual_check && (
+                            <>
+                              {" · "}
+                              <Tag color={c.manual_check === "contact" ? "var(--accent)" : "var(--neutral)"}>
+                                {c.manual_check === "contact" ? "Checked: worth contacting" : "Checked: skipped"}
+                              </Tag>
+                            </>
+                          )}
                         </span>
                       </td>
                       <td>{c.project ?? <span className="muted">—</span>}</td>

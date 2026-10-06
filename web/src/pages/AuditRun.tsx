@@ -1,6 +1,7 @@
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, ClipboardCopy, Info, LayoutDashboard, Plus, Square, SquareTerminal, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleX, Info, LayoutDashboard, Plus, Square, SquareTerminal, TriangleAlert } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ClaudeExport, Screenshots } from "../components/SiteParts";
 import { Banner, Button, Card, PageHeader, ProgressBar, ScoreBadge, Spinner, Tag } from "../components/ui";
 import { api, type AuditDetail, type Site, type SiteState } from "../lib/api";
 import { AUDIT_STATUS_LABEL, formatDuration, formatTime, hostOf, plural, SITE_STATE_LABEL } from "../lib/format";
@@ -255,95 +256,10 @@ function SitesTable({ auditId, sites }: { auditId: number; sites: Site[] }) {
   );
 }
 
-/** Thumbnails that open full size in the page itself (the desktop window has no tabs). */
-function Screenshots({ base, names, host }: { base: string; names: string[]; host: string }) {
-  const [open, setOpen] = useState<string | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-  return (
-    <>
-      <div className="shots">
-        {names.map((name) => (
-          <button key={name} type="button" className="shot-thumb" onClick={() => setOpen(name)} aria-label={`Show the ${name} screenshot full size`}>
-            <img src={`${base}/${name}`} alt={`${name} screenshot of ${host}`} width={name === "mobile" ? 90 : 280} loading="lazy" />
-          </button>
-        ))}
-      </div>
-      {open && (
-        <div className="lightbox" role="dialog" aria-modal="true" aria-label={`${open} screenshot of ${host}`} onClick={() => setOpen(null)}>
-          <img src={`${base}/${open}`} alt={`${open} screenshot of ${host}`} />
-          <span className="lightbox-hint">Click anywhere or press Esc to close</span>
-        </div>
-      )}
-    </>
-  );
-}
-
 type SiteDetailData = {
   issues: { check_id: string; status: "warn" | "fail"; impact: number; label: string; summary: string }[];
   result: { screenshots?: Record<string, string>; tech?: { cms: string | null; cms_version: string | null } } | null;
 };
-
-function claudePrompt(site: Site): string {
-  return (
-    `I unzipped a Web Audit export for ${hostOf(site.final_url ?? site.input_url)} into this project. ` +
-    "Read the CLAUDE.md in that folder first, then help me fix the problems from its REPORT.md, biggest impact first. " +
-    "Before each change, tell me what you will change and why; after it, show me how you verified it."
-  );
-}
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // Clipboard API needs a secure context; fall back to a temporary textarea.
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    const ok = document.execCommand("copy");
-    area.remove();
-    return ok;
-  }
-}
-
-function ClaudeExport({ auditId, site }: { auditId: number; site: Site }) {
-  const toast = useToast();
-  return (
-    <div className="export-box">
-      <SquareTerminal size={20} aria-hidden className="export-icon" />
-      <div className="export-text">
-        <strong>Fix it with Claude Code</strong>
-        <span className="muted">
-          A ZIP with every problem and its exact place on the page, how to fix and verify it, the page contents, its HTML and screenshots. Unzip it
-          into the website's project and paste the prompt into Claude Code.
-        </span>
-      </div>
-      <div className="row" style={{ gap: 8 }}>
-        <a className="btn btn-primary btn-sm" href={`/api/audits/${auditId}/sites/${site.id}/claude-export`} download>
-          Download ZIP
-        </a>
-        <Button
-          size="sm"
-          icon={ClipboardCopy}
-          onClick={async () => {
-            const copied = await copyText(claudePrompt(site));
-            toast(copied ? "Prompt copied – paste it into Claude Code" : "Could not copy the prompt", copied ? "ok" : "error");
-          }}
-        >
-          Copy prompt
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function SiteDetail({ auditId, site }: { auditId: number; site: Site }) {
   const data = useApi<SiteDetailData>(site.state === "ok" ? `/api/audits/${auditId}/sites/${site.id}` : null);
@@ -353,7 +269,12 @@ function SiteDetail({ auditId, site }: { auditId: number; site: Site }) {
   const tech = data.data.result?.tech;
   return (
     <div className="stack">
-      <ClaudeExport auditId={auditId} site={site} />
+      <div className="row">
+        <Link to={`/audits/${auditId}/sites/${site.id}`} className="btn btn-sm">
+          Open website detail <ArrowRight size={16} aria-hidden />
+        </Link>
+      </div>
+      <ClaudeExport auditId={auditId} siteId={site.id} host={hostOf(site.final_url ?? site.input_url)} />
       {data.data.issues.length ? (
         <ul className="issue-list" aria-label="Problems, biggest impact first">
           {data.data.issues.slice(0, 10).map((issue) => (

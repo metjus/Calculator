@@ -46,6 +46,9 @@ colour-blind users and in greyscale print.
 
 Feedback roles: `--danger`, `--warning`, `--success` with `-weak` tints for banners.
 
+CMS ramp `--r1…--r5` (one hue of the accent, dark to light) plus `--other`; `--code` behind
+selectors and URLs in problem details; `--mono` is the system monospace stack.
+
 ### Type, space, shape
 
 | Token | Value |
@@ -80,6 +83,9 @@ Feedback roles: `--danger`, `--warning`, `--success` with `-weak` tints for bann
 | `AreaCombobox` | country-restricted autocomplete | loading, empty, error | ARIA combobox: ↑/↓, Enter, Esc, `aria-activedescendant` |
 | `MapPreview` | radius circle or region box | placeholder until an area is chosen | `role="img"` with a text label; scroll-zoom off |
 | Export box (`ClaudeExport` in `AuditRun`) | download link + copy-prompt button | copy falls back to a hidden textarea outside secure contexts | Toast confirms the copy; the link is a real `<a download>` |
+| `Donut` + `Legend` (`charts.tsx`) | `slices` (label, value, colour), `size` lg · sm, `center` | empty slices hidden; 1.8-unit gaps between slices | SVG `role="img"` with every value in its label; each slice has a `<title>` |
+| `Bars` (`charts.tsx`) | `bars`, `max`, optional `onPick` + `selected` | with `onPick` each bar is a toggle button | `aria-pressed` on the selected bar |
+| Problem list (`SiteDetail`) | impact, label, area dot, expandable body with Where / What to do | first problem open; “Show N more” after 8 | header is a `<button aria-expanded>` |
 | Live log (`AuditRun`) | levels ok · warn · error · info | auto-scrolls only when already at the bottom | Icon has a text label; times in `<time>` |
 
 ## Patterns

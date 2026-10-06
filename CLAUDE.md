@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A website-audit SaaS for web designers (brief in Slovak: `docs/SPEC.sk.md`; SaaS translation and stage plan: `docs/ARCHITECTURE.md`). The brief is built **in stages, showing the user each result before continuing**; check the stage table in `docs/ARCHITECTURE.md` before starting new work. The brief also requires showing UI design proposals before writing any UI code.
 
-Stages 1–2 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
+Stages 1–3 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
 
 ## Commands (run from `core/`)
 
@@ -73,6 +73,7 @@ Invariants that span files:
 ## API and web (`api/src/webaudit_api`, `web/src`)
 
 - Every query is scoped by `user.workspace_id`; endpoints that take an id load the row and compare its workspace (404 otherwise).
+- Schema changes: `db.create_schema` adds missing **nullable** columns to existing tables on start (the desktop database survives updates); anything else needs a real migration.
 - Mutating `/api` requests need the header `X-Requested-With: webaudit` (CSRF guard in `main.py`); `web/src/lib/api.ts` adds it.
 - API keys are only stored encrypted (`security.KeyBox`) and returned as `last4`. Never log or return a decrypted key.
 - The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.

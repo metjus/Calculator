@@ -14,6 +14,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { NewAudit } from "./pages/NewAudit";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
+import { SiteDetail } from "./pages/SiteDetail";
 
 /** Keeps the shell usable when one page crashes, instead of a blank window. */
 class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -82,6 +83,7 @@ const PAGES: [string, ReactNode][] = [
   ["/audits", <Audits />],
   ["/audits/new", <NewAudit />],
   ["/audits/:id", <AuditRun />],
+  ["/audits/:auditId/sites/:siteId", <SiteDetail />],
   ["/customers", <Customers />],
   ["/settings", <Settings />],
   ["*", <NotFound />],

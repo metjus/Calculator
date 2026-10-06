@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -36,8 +37,34 @@ def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 
 async def create_schema(engine: AsyncEngine) -> None:
-    """Create missing tables. (Alembic migrations arrive before the first production deploy.)"""
+    """Create missing tables and add missing columns. (Alembic migrations arrive before the first production deploy.)"""
     from . import models  # noqa: F401  (register tables)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_missing_columns)
+
+
+def _add_missing_columns(conn: Connection) -> None:
+    """Bring an older database up to date: a column added to a model is added to its table.
+
+    The desktop app keeps its database across updates, and ``create_all`` only creates
+    missing tables. Only additive, nullable columns are supported this way.
+    """
+    inspector = inspect(conn)
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        existing = {column["name"] for column in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in existing:
+                continue
+            if not column.nullable:
+                raise RuntimeError(f"{table.name}.{column.name} is new and NOT NULL; add it with a real migration")
+            preparer = conn.dialect.identifier_preparer
+            conn.execute(
+                text(
+                    f"ALTER TABLE {preparer.quote(table.name)} ADD COLUMN {preparer.quote(column.name)} "
+                    f"{column.type.compile(dialect=conn.dialect)}"
+                )
+            )

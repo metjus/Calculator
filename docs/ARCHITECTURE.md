@@ -111,8 +111,8 @@ delay, a time budget per site, capped page/link counts, an honest
 | # | Stage | SaaS notes | Status |
 |---|---|---|---|
 | 1 | Core: single-site scan, all non-AI checks, score, CLI | `core/` | **done** |
-| 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | `api/` + `web/` in direction B “Petrol” – see *Stage 2 as built* below | **done** – waiting for your feedback |
-| 3 | Audit dashboard | Postgres schema, metrics, charts, table, site detail | |
+| 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | `api/` + `web/` in direction B “Petrol” – see *Stage 2 as built* below | **done** |
+| 3 | Audit dashboard | metrics, charts, worst-first table, website detail, manual-check decisions – see *Stage 3 as built* | **done** – waiting for your feedback |
 | 4 | Screenshots + AI design review, competitor comparison | screenshots already captured by core; Claude review + cost estimate | |
 | 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright in the worker; texts already in `texts.json` | |
 | 6 | Prices + “Check my prices” | | |
@@ -158,6 +158,26 @@ What exists now, and where it deliberately differs from the target picture above
 
 Configuration is environment-only (`WEBAUDIT_*`, see `api/README.md`); nothing
 secret is read from files in the repository.
+
+## Stage 3 as built
+
+Design: https://claude.ai/artifact/QGTafYBxFhXJX361mkCJzY (dashboard + website detail, light and dark), approved.
+
+- **Dashboard** (`GET /api/dashboard?project=&days=`, `routers/dashboard.py`): each website counts once,
+  as the latest finished scan of its customer (or domain) within the chosen project and period. Metrics,
+  score-category / HTTPS / mobile / CMS (top 5 + other) donuts and the eight most common problems are
+  computed over scored sites only; clicking a problem filters the worst-first table in the browser.
+- **Check manually**: unscored sites (protected, unreachable, robots, invalid) are listed apart. The user's
+  decision after checking one by hand is stored on the customer (`Company.manual_check` = `contact` |
+  `skip`, `PUT /api/companies/{id}/manual-check`, undo with `null`), so it survives later audits; stage 7
+  turns it into a CRM status. “Audit again” starts a new one-site audit.
+- **Website detail** (`/audits/:auditId/sites/:siteId`; data from `GET /api/audits/{id}/sites/{sid}`, built by
+  `site_view.py`): score ring with area scores and weights, screenshots, problems with “Where” (evidence)
+  and “What to do” (English client texts), facts at a glance, earlier audits of the same customer and a
+  summary of the page inventory. Competitor comparison and the AI review show placeholders until stage 4;
+  “Create PDF” is disabled until stage 5.
+- **Schema updates**: `create_schema` adds new nullable columns to existing tables (the desktop database
+  is kept across updates). Anything beyond additive nullable columns needs a real migration.
 
 ## Desktop first, SaaS later (decided after stage 2)
 

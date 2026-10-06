@@ -26,6 +26,14 @@
   --weak: #cb5a1a;
   --ok: #daa932;
   --good: #17a478;
+  /* CMS donut: one-hue ramp of the accent, so it never competes with the categories */
+  --r1: #06484b;
+  --r2: #0b6e72;
+  --r3: #3a918f;
+  --r4: #6db0ad;
+  --r5: #a2cfcb;
+  --other: #a8a196;
+  --code: #f1ede5; /* selectors and URLs in problem details */
 
   /* feedback */
   --danger: #9b1111;
@@ -70,6 +78,13 @@
   --weak: #ec8329;
   --ok: #f5d862;
   --good: #2fb08a;
+  --r1: #b3e3e0;
+  --r2: #7fcfcb;
+  --r3: #4fb8b3;
+  --r4: #2f938f;
+  --r5: #1f6f6c;
+  --other: #6b665e;
+  --code: #202523;
 
   --danger: #f08a96;
   --danger-weak: rgba(201, 42, 74, 0.18);
@@ -91,6 +106,7 @@
 
 :root {
   --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace;
   --radius: 6px;
   --radius-sm: 4px;
   --space-1: 4px;

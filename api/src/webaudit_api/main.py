@@ -13,10 +13,11 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from . import __version__
 from .db import create_schema, make_engine, make_sessionmaker
 from .deps import current_user
 from .models import User
-from .routers import audits, auth, companies, search, settings
+from .routers import audits, auth, companies, dashboard, search, settings
 from .security import CSRF_HEADER, CSRF_VALUE, KeyBox
 from .settings import Settings
 from .worker import AuditWorker
@@ -61,7 +62,7 @@ def create_app(
             await engine.dispose()
 
     app = FastAPI(
-        title="Web Audit API", version="0.2.0", lifespan=lifespan, docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json"
+        title="Web Audit API", version=__version__, lifespan=lifespan, docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json"
     )
 
     @app.middleware("http")
@@ -87,6 +88,7 @@ def create_app(
     app.include_router(audits.router)
     app.include_router(search.router)
     app.include_router(companies.router)
+    app.include_router(dashboard.router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

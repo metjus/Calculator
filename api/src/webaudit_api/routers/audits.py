@@ -24,6 +24,7 @@ from ..audit_service import AuditRequest, CreatedAudit, create_audit, parse_csv_
 from ..deps import current_user, get_db, get_settings
 from ..models import Audit, AuditEvent, AuditSite, User, Workspace
 from ..settings import Settings
+from ..site_view import areas, facts, page_contents, problems
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 _CONFIG = Config.load()  # labels for problem ids (English operator UI)
@@ -146,7 +147,7 @@ async def list_audits(user: User = Depends(current_user), db: AsyncSession = Dep
 
 @router.get("/stats/summary")
 async def audit_summary(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict[str, int]:
-    """Small counters for the empty dashboard and the sidebar (full dashboard in stage 3)."""
+    """Small counters for the empty dashboard and the sidebar."""
     audits = await db.scalar(select(func.count(Audit.id)).where(Audit.workspace_id == user.workspace_id))
     sites = await db.scalar(
         select(func.count(AuditSite.id)).join(Audit).where(Audit.workspace_id == user.workspace_id, AuditSite.score.is_not(None))
@@ -176,7 +177,40 @@ async def get_site_result(
         {**issue, "label": check_label(_CONFIG, issue["check_id"]), "summary": summaries.get(issue["check_id"], "")}
         for issue in result.get("issues", [])
     ]
-    return {"site": _site_out(site).model_dump(), "issues": issues, "result": result}
+    history = []
+    if site.company_id:
+        earlier = await db.scalars(
+            select(AuditSite)
+            .where(AuditSite.company_id == site.company_id, AuditSite.finished_at.is_not(None))
+            .order_by(AuditSite.finished_at.desc())
+            .limit(20)
+        )
+        history = [
+            {
+                "site_id": s.id,
+                "audit_id": s.audit_id,
+                "state": s.state,
+                "score": s.score,
+                "category": s.category,
+                "finished_at": s.finished_at,
+            }
+            for s in earlier
+        ]
+    audit = await db.get(Audit, audit_id)
+    company = site.company
+    return {
+        "site": _site_out(site).model_dump(),
+        "audit": {"id": audit_id, "project": audit.project if audit else None},
+        "company": {"id": company.id, "name": company.name, "manual_check": company.manual_check} if company else None,
+        "finished_at": site.finished_at,
+        "issues": issues,
+        "problems": problems(result, _CONFIG),
+        "areas": areas(result, _CONFIG) if result.get("score") else [],
+        "facts": facts(result) if result.get("checks") else [],
+        "contents": page_contents(result),
+        "history": history,
+        "result": result,
+    }
 
 
 @router.get("/{audit_id}/sites/{site_id}/screenshots/{name}")

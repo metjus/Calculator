@@ -114,6 +114,7 @@ export type Company = {
   project: string | null;
   has_website: boolean;
   do_not_contact: boolean;
+  manual_check: "contact" | "skip" | null;
   source: "google" | "osm" | "manual";
   created_at: string;
   last_score: number | null;
@@ -182,3 +183,68 @@ export type SearchResponse = {
   warnings: string[];
 };
 export type SearchTemplate = { id: number; name: string; params: SearchParams };
+
+export type ManualDecision = "contact" | "skip";
+export type DashboardSite = {
+  site_id: number;
+  audit_id: number;
+  domain: string;
+  company: string | null;
+  project: string | null;
+  score: number;
+  category: Category;
+  top_issue: string | null;
+  issues: number;
+  issue_ids: string[];
+  finished_at: string;
+};
+export type ManualSite = {
+  site_id: number;
+  audit_id: number;
+  company_id: number | null;
+  domain: string;
+  url: string;
+  company: string | null;
+  project: string | null;
+  state: SiteState;
+  reason: string | null;
+  decision: ManualDecision | null;
+  checked_at: string | null;
+  finished_at: string;
+};
+export type DashboardData = {
+  projects: string[];
+  metrics: { audited: number; to_check: number; average: number | null; critical: number; without_https: number };
+  categories: Record<Category, number>;
+  https: { yes: number; no: number };
+  mobile: { yes: number; no: number };
+  cms: { name: string; count: number }[];
+  problems: { check_id: string; label: string; count: number }[];
+  websites: DashboardSite[];
+  manual: ManualSite[];
+};
+
+export type Problem = {
+  check_id: string;
+  area: string;
+  area_label: string;
+  status: "warn" | "fail";
+  impact: number;
+  label: string;
+  problem: string;
+  solution: string;
+  summary: string;
+  where: string[];
+};
+export type SiteView = {
+  site: Site;
+  audit: { id: number; project: string | null };
+  company: { id: number; name: string | null; manual_check: ManualDecision | null } | null;
+  finished_at: string | null;
+  problems: Problem[];
+  areas: { area: string; label: string; score: number | null; weight: number }[];
+  facts: { label: string; value: string; tone: "bad" | "warn" | "ok" }[];
+  contents: { label: string; value: string }[];
+  history: { site_id: number; audit_id: number; state: SiteState; score: number | null; category: Category | null; finished_at: string }[];
+  result: (ScanResult & { inventory?: { cookie_banner?: { detected: boolean; dismissed: boolean } } }) | null;
+};

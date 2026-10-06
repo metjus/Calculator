@@ -31,6 +31,8 @@ export function parseDate(value: string): Date {
 }
 
 export const formatDate = (value: string | null) => (value ? dateFormat.format(parseDate(value)) : "—");
+const dayFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+export const formatDay = (value: string | null) => (value ? dayFormat.format(parseDate(value)) : "—");
 export const formatTime = (value: string) => timeFormat.format(parseDate(value));
 
 export function formatDuration(seconds: number): string {
