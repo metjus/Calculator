@@ -48,6 +48,8 @@ jobs:
     name: Build WebAudit.exe
     runs-on: windows-latest
     timeout-minutes: 45
+    permissions:
+      contents: write  # publishes the tested build as the "desktop-latest" release
     env:
       PYTHONUTF8: "1"
     steps:
@@ -107,3 +109,20 @@ jobs:
           path: dist/WebAudit
           if-no-files-found: error
           retention-days: 30
+
+      # Artifacts need a GitHub login to download; a release asset of a public repo does not.
+      - name: Publish as release "desktop-latest"
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Compress-Archive -Path dist\WebAudit -DestinationPath WebAudit-windows.zip
+          gh release delete desktop-latest --cleanup-tag --yes 2>$null
+          $notes = @"
+          Latest tested build of the Web Audit desktop program for Windows (commit $env:GITHUB_SHA).
+
+          1. Download WebAudit-windows.zip below and unzip it, e.g. to Documents\WebAudit (not Program Files).
+          2. Run WebAudit.exe. If Windows says "Windows protected your PC", choose More info → Run anyway (the program is not code-signed yet).
+          3. Your data is kept in the data folder next to WebAudit.exe. To update, unzip a newer build and copy your data folder next to the new WebAudit.exe.
+          "@
+          gh release create desktop-latest WebAudit-windows.zip --prerelease --target $env:GITHUB_SHA --title "Web Audit for Windows (latest build)" --notes $notes

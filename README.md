@@ -27,8 +27,9 @@ is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 No server, no Docker, no Python. The program is built and tested on Windows by
 GitHub Actions ([`desktop-windows.yml`](.github/workflows/desktop-windows.yml)):
 
-1. Open the repository on GitHub → **Actions** → **Desktop app (Windows)** → the
-   latest green run → **Artifacts** → download **WebAudit-windows**.
+1. Download **WebAudit-windows.zip** from the
+   [“desktop-latest” release](https://github.com/metjus/Calculator/releases/tag/desktop-latest)
+   (no GitHub login needed; it is replaced by every tested build).
 2. Unzip it somewhere you can write to, e.g. `Documents\WebAudit` (not `Program Files`).
 3. Double-click **WebAudit.exe**. Windows may say “Windows protected your PC”
    because the program is not code-signed yet: **More info → Run anyway**.
