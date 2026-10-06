@@ -3,6 +3,7 @@ either source – never phone numbers, e-mails or people's names."""
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,6 +11,8 @@ from typing import Any
 import httpx
 
 from . import OSM_ATTRIBUTION  # noqa: F401  (re-exported for callers)
+
+log = logging.getLogger(__name__)
 
 OSM_AREA_OFFSET = 3_600_000_000  # Overpass area id = relation id + this offset
 PLACE_TYPES = {"city", "town", "village", "locality", "district"}
@@ -145,10 +148,18 @@ class Photon:
 
 
 class Overpass:
-    """Businesses from OpenStreetMap; ODbL data that may be stored with attribution."""
+    """Businesses from OpenStreetMap; ODbL data that may be stored with attribution.
 
-    def __init__(self, client: httpx.AsyncClient, url: str) -> None:
-        self.client, self.url = client, url
+    The public Overpass servers are volunteer-run and often busy (429/504), so the
+    query goes to each of ``urls`` in turn until one answers.
+    """
+
+    TIMEOUT = httpx.Timeout(10.0, read=45.0)  # the query itself may run 25 s on the server
+
+    def __init__(self, client: httpx.AsyncClient, urls: str | list[str]) -> None:
+        self.client = client
+        self.urls = [u.strip() for u in urls.split(",")] if isinstance(urls, str) else list(urls)
+        self.urls = [u for u in self.urls if u]
 
     @staticmethod
     def build_query(area: Area, tags: list[list[str]], name_regex: str | None) -> str:
@@ -166,13 +177,7 @@ class Overpass:
         return f"[out:json][timeout:25];{prefix}({''.join(selectors)});out center tags 400;"
 
     async def search(self, area: Area, tags: list[list[str]], name_regex: str | None, category_label: str | None) -> list[Business]:
-        query = self.build_query(area, tags, name_regex)
-        try:
-            response = await self.client.post(self.url, data={"data": query})
-            response.raise_for_status()
-            elements = response.json().get("elements", [])
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ProviderError("OpenStreetMap search is not available right now") from exc
+        elements = await self._query(self.build_query(area, tags, name_regex))
         out: list[Business] = []
         for element in elements:
             tags_ = element.get("tags") or {}
@@ -194,6 +199,36 @@ class Overpass:
                 )
             )
         return out
+
+    async def _query(self, query: str) -> list[dict[str, Any]]:
+        failures: list[str] = []
+        for url in self.urls:
+            host = httpx.URL(url).host
+            try:
+                response = await self.client.post(url, data={"data": query}, headers={"Accept": "application/json"}, timeout=self.TIMEOUT)
+            except httpx.HTTPError as exc:
+                failures.append(f"{host}: {exc.__class__.__name__}")
+                log.warning("Overpass %s failed: %r", host, exc)
+                continue
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                except ValueError:
+                    failures.append(f"{host}: not JSON")
+                    log.warning("Overpass %s answered something other than JSON: %.200s", host, response.text)
+                    continue
+                remark = data.get("remark") or ""
+                if not data.get("elements") and ("runtime error" in remark or "timed out" in remark):
+                    failures.append(f"{host}: {remark[:80]}")
+                    log.warning("Overpass %s: %s", host, remark)
+                    continue
+                return data.get("elements", [])
+            failures.append(f"{host}: HTTP {response.status_code}")
+            log.warning("Overpass %s answered %s: %.300s", host, response.status_code, response.text)
+            if response.status_code == 400:  # our query is wrong; another server will say the same
+                break
+        detail = "; ".join(failures) or "no server configured"
+        raise ProviderError(f"OpenStreetMap search is not available right now ({detail})")
 
 
 # ------------------------------------------------------------- Google Places (New)

@@ -122,7 +122,7 @@ async def test_options_and_areas_are_country_restricted(user_client: httpx.Async
     assert {"code": "sk", "name": "Slovakia", "language": "sk"} in options["countries"]
     assert any(c["id"] == "hair_salon" for c in options["categories"])
     assert options["google_configured"] is False
-    assert "{z}" in options["map_tile_url"]
+    assert options["map_tile_url"] == "/api/search/tiles/{z}/{x}/{y}" and "OpenStreetMap" in options["map_attribution"]
 
     areas = (await user_client.get("/api/search/areas", params={"country": "sk", "q": "Trnava"})).json()
     assert [a["label"] for a in areas] == ["Trnava, okres Trnava, Trnavský kraj, Slovensko", "okres Trnava, Trnavský kraj, Slovensko"]
@@ -222,3 +222,64 @@ def test_overpass_query_shapes() -> None:
     assert "(around:10000,48.000000,17.000000)" in circle and 'nwr["shop"="hairdresser"]' in circle
     region = Overpass.build_query(Area("okres", 48.0, 17.0, osm_relation=388265), [["shop", "hairdresser"]], "Kader")
     assert "area(id:3600388265)" in region and '["name"~"Kader",i]' in region
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+OSM_BLOCKED = b"<html>Access blocked</html>"
+
+
+async def test_overpass_falls_back_to_the_next_server(app, user_client: httpx.AsyncClient, calls: list[httpx.Request]) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.url.host == "overpass-api.de":
+            return httpx.Response(429, text="rate_limited")
+        if request.url.host == "overpass.private.coffee":
+            return httpx.Response(504, text="Gateway Timeout")
+        if request.url.host == "maps.mail.ru":
+            return httpx.Response(200, json=OVERPASS)
+        return httpx.Response(404)
+
+    app.state.search_transport = httpx.MockTransport(handler)
+    body = {"country": "sk", "area": TRNAVA, "radius_km": 10, "category_id": "hair_salon", "sources": ["osm"]}
+    result = (await user_client.post("/api/search/run", json=body)).json()
+    assert result["sources"]["osm"] == 3 and result["warnings"] == []
+    assert [r.url.host for r in calls] == ["overpass-api.de", "overpass.private.coffee", "maps.mail.ru"]
+    assert calls[0].headers["User-Agent"].startswith("WebAudit/") and "github.com" in calls[0].headers["User-Agent"]
+
+    def down(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "maps.mail.ru":
+            raise httpx.ConnectTimeout("timed out", request=request)
+        return httpx.Response(503, text="busy")
+
+    app.state.search_transport = httpx.MockTransport(down)
+    result = (await user_client.post("/api/search/run", json=body)).json()
+    assert result["sources"]["osm"] == 0
+    (warning,) = result["warnings"]
+    assert "overpass-api.de: HTTP 503" in warning and "maps.mail.ru: ConnectTimeout" in warning
+
+
+async def test_map_tiles_are_fetched_once_and_cached(app, settings, user_client: httpx.AsyncClient, make_client) -> None:
+    tile_calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        tile_calls.append(request)
+        if request.url.path == "/11/1123/711.png":
+            return httpx.Response(200, content=PNG, headers={"Content-Type": "image/png"})
+        return httpx.Response(403, content=OSM_BLOCKED, headers={"Content-Type": "text/html"})
+
+    app.state.search_transport = httpx.MockTransport(handler)
+    first = await user_client.get("/api/search/tiles/11/1123/711")
+    assert first.status_code == 200 and first.content == PNG and first.headers["content-type"] == "image/png"
+    assert "max-age" in first.headers["cache-control"]
+    assert str(tile_calls[0].url) == "https://tile.openstreetmap.org/11/1123/711.png"
+    assert tile_calls[0].headers["User-Agent"].startswith("WebAudit/")
+    assert (settings.data_dir / "tiles" / "11" / "1123" / "711").read_bytes() == PNG
+
+    again = await user_client.get("/api/search/tiles/11/1123/711")
+    assert again.content == PNG and len(tile_calls) == 1  # served from the cache
+
+    assert (await user_client.get("/api/search/tiles/11/1124/711")).status_code == 502  # a block page is never served as a tile
+    assert (await user_client.get("/api/search/tiles/2/4/0")).status_code == 404
+    assert (await user_client.get("/api/search/tiles/19/0/0")).status_code == 404
+    async with make_client() as anonymous:
+        assert (await anonymous.get("/api/search/tiles/11/1123/711")).status_code == 401

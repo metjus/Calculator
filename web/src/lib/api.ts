@@ -137,6 +137,7 @@ export type SearchOptions = {
   osm_attribution: string;
   radius_km: { min: number; max: number; default: number };
   map_tile_url: string;
+  map_attribution: string;
 };
 export type SearchParams = {
   country: string;

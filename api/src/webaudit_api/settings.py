@@ -20,6 +20,13 @@ def _bool(name: str, default: bool) -> bool:
 
 
 SECRET_FILE = "secret.key"
+DEFAULT_OVERPASS = ",".join(
+    [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    ]
+)
 
 
 def _secret_key() -> str:
@@ -70,12 +77,20 @@ class Settings:
     session_days: int = 30
     # Base URLs of external services (overridable for tests).
     google_places_base: str = "https://places.googleapis.com/v1"
-    overpass_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_OVERPASS_URL", "https://overpass-api.de/api/interpreter"))
+    # Overpass servers, comma-separated, tried in order (the public ones are often busy).
+    overpass_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_OVERPASS_URL", DEFAULT_OVERPASS))
     photon_url: str = field(default_factory=lambda: os.environ.get("WEBAUDIT_PHOTON_URL", "https://photon.komoot.io/api/"))
     # Desktop app (webaudit_desktop): one local user, signed in with a per-launch token instead of a password.
     local_mode: bool = field(default_factory=lambda: _bool("WEBAUDIT_LOCAL_MODE", False))
     local_token: str | None = field(default_factory=lambda: os.environ.get("WEBAUDIT_LOCAL_TOKEN") or None)
-    # Map preview tiles; the public OSM server is fine for light use, set your own provider for production.
+    # Map preview tiles. The browser loads them from /api/search/tiles, which fetches them from this
+    # server with an identifying User-Agent and caches them in <data>/tiles, as the OSM tile usage
+    # policy asks. Use your own tile provider for a busy SaaS deployment.
     map_tile_url: str = field(
         default_factory=lambda: os.environ.get("WEBAUDIT_MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    )
+    map_attribution: str = field(
+        default_factory=lambda: os.environ.get(
+            "WEBAUDIT_MAP_ATTRIBUTION", '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        )
     )

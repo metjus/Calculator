@@ -7,10 +7,10 @@ import { useTheme } from "../lib/theme";
 
 const ACCENT = { light: "#0b6e72", dark: "#4fb8b3" }; // --accent in tokens.css
 
-type Props = { tileUrl: string; area: AreaSuggestion | null; mode: "radius" | "region"; radiusKm: number };
+type Props = { tileUrl: string; attribution: string; area: AreaSuggestion | null; mode: "radius" | "region"; radiusKm: number };
 
 /** Read-only preview of the search area: a circle for a radius search, the bounding box for a whole region. */
-export function MapPreview({ tileUrl, area, mode, radiusKm }: Props) {
+export function MapPreview({ tileUrl, attribution, area, mode, radiusKm }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -19,7 +19,8 @@ export function MapPreview({ tileUrl, area, mode, radiusKm }: Props) {
   useEffect(() => {
     if (!box.current || !area) return;
     const instance = L.map(box.current, { zoomControl: true, scrollWheelZoom: false, attributionControl: true }).setView([area.lat, area.lon], 11);
-    L.tileLayer(tileUrl, { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(instance);
+    // Tiles come through our API (/api/search/tiles), which identifies the app to the tile server and caches them.
+    L.tileLayer(tileUrl, { maxZoom: 18, attribution }).addTo(instance);
     layer.current = L.layerGroup().addTo(instance);
     map.current = instance;
     return () => {
@@ -28,7 +29,7 @@ export function MapPreview({ tileUrl, area, mode, radiusKm }: Props) {
       layer.current = null;
     };
     // Created when the container appears; area changes are drawn by the effect below.
-  }, [tileUrl, Boolean(area)]);
+  }, [tileUrl, attribution, Boolean(area)]);
 
   useEffect(() => {
     const instance = map.current;

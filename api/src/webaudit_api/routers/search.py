@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
 import re
+import time
 from datetime import UTC, datetime
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from webaudit.inputs import SiteInput, normalize_url
 
+from .. import __version__
 from ..audit_service import AuditRequest, create_audit
 from ..companies import get_or_create_company
 from ..deps import current_user, get_db, get_keybox, get_settings
@@ -27,7 +31,11 @@ from .audits import CreateResult, created_response
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 SKU = "text_search_enterprise"
-USER_AGENT = "WebAuditBot/0.2 (business search; contact via the app operator)"
+# OSM services ask for a User-Agent that names the application and where to find it.
+USER_AGENT = f"WebAudit/{__version__} (+https://github.com/metjus/Calculator)"
+TILE_PATH = "/api/search/tiles/{z}/{x}/{y}"
+TILE_REFRESH_DAYS = 30
+TILE_BROWSER_CACHE = 7 * 24 * 3600
 
 
 # ------------------------------------------------------------------ schemas
@@ -190,8 +198,58 @@ async def options(
         "google_configured": bool(google),
         "osm_attribution": OSM_ATTRIBUTION,
         "radius_km": {"min": 5, "max": 50, "default": 15},
-        "map_tile_url": settings.map_tile_url,
+        "map_tile_url": TILE_PATH,
+        "map_attribution": settings.map_attribution,
     }
+
+
+def _tile_type(data: bytes) -> str | None:
+    if data.startswith(b"\x89PNG"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8"):
+        return "image/jpeg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@router.get("/tiles/{z}/{x}/{y}")
+async def tile(
+    z: int, x: int, y: int, request: Request, user: User = Depends(current_user), settings: Settings = Depends(get_settings)
+) -> Response:
+    """Map preview tile, fetched once from the tile server with our User-Agent and kept in <data>/tiles.
+
+    Browsers (and the desktop window, which sends no usable Referer from 127.0.0.1) get blocked by
+    tile.openstreetmap.org; going through here identifies the app and avoids repeat downloads.
+    """
+    if not (0 <= z <= 18 and 0 <= x < 2**z and 0 <= y < 2**z):
+        raise HTTPException(404, "No such tile")
+    path = settings.data_dir / "tiles" / str(z) / str(x) / str(y)
+    cached = path.read_bytes() if path.is_file() else None
+    if cached is None or time.time() - path.stat().st_mtime > TILE_REFRESH_DAYS * 86400:
+        url = settings.map_tile_url
+        for key, value in {"{z}": z, "{x}": x, "{y}": y, "{s}": "a", "{r}": ""}.items():
+            url = url.replace(key, str(value))
+        slots = getattr(request.app.state, "tile_slots", None)
+        if slots is None:  # few parallel downloads, as the tile usage policy asks
+            slots = request.app.state.tile_slots = asyncio.Semaphore(2)
+        fresh = None
+        async with slots, _client(request) as client:
+            try:
+                response = await client.get(url, timeout=15.0)
+                if response.status_code == 200 and _tile_type(response.content):
+                    fresh = response.content
+            except httpx.HTTPError:
+                pass
+        if fresh:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            partial = path.with_name(f"{path.name}.{os.getpid()}.part")
+            partial.write_bytes(fresh)
+            os.replace(partial, path)
+            cached = fresh
+        elif cached is None:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Map tile is not available")
+    return Response(cached, media_type=_tile_type(cached), headers={"Cache-Control": f"private, max-age={TILE_BROWSER_CACHE}"})
 
 
 @router.get("/areas")
