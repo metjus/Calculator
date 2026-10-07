@@ -147,6 +147,77 @@ export type PdfChoices = {
   offer: OfferOption[];
 };
 
+/** Stage 7: the CRM. Statuses, the timeline and the follow-up list. */
+export type CrmStatus =
+  | "lead" | "audited" | "contacted" | "waiting" | "interested" | "proposal" | "deal" | "not_interested" | "no_answer";
+export type ContactWay = "in_person" | "phone" | "email" | "message";
+export type CustomerRow = {
+  id: number;
+  name: string | null;
+  url: string | null;
+  domain: string | null;
+  project: string | null;
+  has_website: boolean;
+  do_not_contact: boolean;
+  manual_check: string | null;
+  status: CrmStatus;
+  status_label: string;
+  status_at: string | null;
+  next_step: string | null;
+  next_step_at: string | null;
+  deal_value: number | null;
+  score: number | null;
+  audit_id: number | null;
+  site_id: number | null;
+  last_contact: string | null;
+  contacts: number;
+  created_at: string;
+};
+export type FollowUp = CustomerRow & { reason: "waiting" | "next_step" };
+export type CrmStats = {
+  funnel: { status: CrmStatus; label: string; count: number }[];
+  by_status: { status: CrmStatus; label: string; count: number }[];
+  conversion: { contacted: number; interested: number; deals: number; interested_pct: number | null; deal_pct: number | null };
+  weeks: { week: string; contacted: number; deals: number }[];
+  answer_days: number | null;
+  deal_value: number;
+  open: number;
+  total: number;
+};
+export type CustomerList = {
+  rows: CustomerRow[];
+  follow_ups: FollowUp[];
+  projects: string[];
+  statuses: { id: CrmStatus; label: string; open: boolean }[];
+  stats: CrmStats;
+  total: number;
+};
+export type TimelineEntry = {
+  id: number;
+  kind: "status" | "contact" | "proposal" | "note" | "audit";
+  at: string | null;
+  status?: CrmStatus | null;
+  status_label?: string | null;
+  way?: ContactWay | null;
+  note?: string | null;
+  score?: number | null;
+  state?: string;
+  audit_id?: number;
+  site_id?: number;
+};
+export type CustomerCard = {
+  customer: CustomerRow & {
+    notes: string | null;
+    proposal_url: string | null;
+    proposal_sent_at: string | null;
+    proposal_warning: boolean;
+    source: "google" | "osm" | "manual";
+  };
+  timeline: TimelineEntry[];
+  statuses: { id: CrmStatus; label: string; open: boolean }[];
+  ways: ContactWay[];
+};
+
 export type Company = {
   id: number;
   name: string | null;

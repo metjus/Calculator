@@ -93,13 +93,42 @@ class Company(Base):
     do_not_contact: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     # The user's decision after checking a website the scanner could not score by hand
-    # ("contact" = worth contacting, "skip" = not worth it); stage 7 turns it into a status.
+    # ("contact" = worth contacting, "skip" = not worth it); the CRM status takes it from there.
     manual_check: Mapped[str | None] = mapped_column(String(16), nullable=True)
     manual_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # --- CRM (stage 7). Still no contact person, phone or e-mail: the brief forbids storing them.
+    status: Mapped[str | None] = mapped_column(String(24), nullable=True, index=True)  # see STATUSES
+    status_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_step: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    next_step_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The live demo of a design, and when it went out: after 30 days the program says to take it down.
+    proposal_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    proposal_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deal_value: Mapped[int | None] = mapped_column(Integer, nullable=True)  # agreed price, whole currency units
 
     @property
     def has_website(self) -> bool:
         return bool(self.url)
+
+
+class CompanyEvent(Base):
+    """The customer's timeline: status changes, contacts, the proposal and the deal.
+
+    Contacts record only the date, how it happened and a short note - never who was spoken to.
+    """
+
+    __tablename__ = "company_events"
+    __table_args__ = (Index("ix_company_events_company_at", "company_id", "at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # status | contact | proposal | note
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    status: Mapped[str | None] = mapped_column(String(24), nullable=True)  # for kind="status"
+    way: Mapped[str | None] = mapped_column(String(16), nullable=True)  # in_person | phone | email | message
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class Audit(Base):

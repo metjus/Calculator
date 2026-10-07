@@ -139,7 +139,7 @@ async def test_dashboard_counts_each_website_once(user_client: httpx.AsyncClient
     assert marked.status_code == 200 and marked.json()["manual_check"] == "contact"
     after = (await user_client.get("/api/dashboard")).json()
     assert after["metrics"]["to_check"] == 0 and after["manual"][0]["decision"] == "contact"
-    customers = {c["name"]: c for c in (await user_client.get("/api/companies")).json()}
+    customers = {c["name"]: c for c in (await user_client.get("/api/companies")).json()["rows"]}
     assert customers["Hotel Tatry"]["manual_check"] == "contact"
     assert (await user_client.put(f"/api/companies/{manual['company_id']}/manual-check", json={"decision": None})).json()[
         "manual_check"

@@ -9,6 +9,7 @@ import { ToastProvider } from "./lib/toast";
 import { AuditRun } from "./pages/AuditRun";
 import { Audits } from "./pages/Audits";
 import { AuthPage } from "./pages/AuthPage";
+import { CustomerCard } from "./pages/CustomerCard";
 import { Customers } from "./pages/Customers";
 import { Dashboard } from "./pages/Dashboard";
 import { NewAudit } from "./pages/NewAudit";
@@ -87,6 +88,7 @@ const PAGES: [string, ReactNode][] = [
   ["/audits/:auditId/sites/:siteId", <SiteDetail />],
   ["/audits/:auditId/sites/:siteId/pdf", <PdfReport />],
   ["/customers", <Customers />],
+  ["/customers/:id", <CustomerCard />],
   ["/settings", <Settings />],
   ["*", <NotFound />],
 ];

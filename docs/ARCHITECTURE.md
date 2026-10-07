@@ -115,8 +115,8 @@ delay, a time budget per site, capped page/link counts, an honest
 | 3 | Audit dashboard | metrics, charts, worst-first table, website detail, manual-check decisions – see *Stage 3 as built* | **done** |
 | 4 | Screenshots + AI design review, competitor comparison | Claude review from the screenshots, cost estimate, competitor scans – see *Stage 4 as built* | **done** – waiting for your feedback |
 | 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright; texts in `texts.json` – see *Stage 5 as built* | **done** |
-| 6 | Prices + “Check my prices” | the per-problem price list was dropped at the owner's request: the three offer prices are typed by hand in the preview, so only the market-price check is left | |
-| 7 | CRM: customers, statuses, history, reminders, sales charts, no-website leads | | |
+| ~~6~~ | ~~Prices + “Check my prices”~~ | **dropped at the owner's request.** The per-problem price list went when the three offer prices became hand-typed, and the owner does not want the market-price check either | — |
+| 7 | CRM: customers, statuses, history, reminders, sales charts, no-website leads | see *Stage 7 as built* | **done** except the “what a website would bring you” PDF |
 | 8 | Archive, duplicates, re-contact, retention | scheduled jobs | |
 | 9 | Polish, real-site testing, deployment | Docker, CI, EU hosting instead of PyInstaller | |
 
@@ -289,3 +289,29 @@ the score ring and the three offer boxes).
   `default-src 'none'` and carries no script. The logo is uploaded in Settings
   (`PUT/DELETE/GET /api/settings/logo`, max 1 MB, PNG/JPEG/SVG/WebP) and kept in
   `<data>/branding`. One render at a time (`pdf_service._render_lock`).
+
+## Stage 7 as built
+
+The sales side: where every customer stands, what happened to them, and who needs a nudge.
+
+- **Statuses** (`api/crm.py`, `STATUSES`): `lead` for a business with no website yet, then the
+  funnel `audited → contacted → waiting → interested → proposal → deal`, and `not_interested` /
+  `no_answer` outside it. The status lives on `companies`, and every change is also written to
+  `company_events`, so the card shows when each step happened without a second source of truth.
+- **`company_events`** is the timeline: `status`, `contact`, `proposal` and `note` rows. A contact
+  keeps the date, how it happened (`in_person | phone | email | message`) and a short note - never
+  who was spoken to, which is the brief's rule. Audits are merged into the same timeline at read
+  time from `audit_sites`, so nothing is duplicated.
+- **Follow-ups** (`crm.follow_up_reason`): a customer waiting for an answer longer than
+  `WAITING_DAYS` (7) or whose next step is due today or earlier. A customer marked "do not contact"
+  never appears. A design demo up longer than `PROPOSAL_DAYS` (30) raises a warning on the card.
+- **Charts** come from the same rows as the list, so the filters and the numbers always agree:
+  the funnel, contacted → interested → deal in per cent, outreach and deals by week, the average
+  days from "contacted" to an answer, and the agreed prices added up.
+- **API**: `GET /api/companies` returns the rows, the follow-ups, the projects, the statuses and
+  the statistics in one response; the card is `GET/PATCH /api/companies/{id}` with
+  `POST …/status`, `POST …/contacts`, `DELETE …/events/{id}`, `DELETE …/notes` and
+  `DELETE …/{id}?keep_url=` (which leaves the address behind marked "do not contact").
+  `GET …/{id}/duplicates` exists but has no screen yet.
+- **Not built yet**: the "what a website would bring you" PDF for businesses with no website, and
+  the archive rules of stage 8.

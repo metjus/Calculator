@@ -91,7 +91,7 @@ async def test_csv_with_no_website_rows(user_client: httpx.AsyncClient, app) -> 
     assert companies["Kaderníctvo X"].domain == "kadernictvo-x.sk"
     assert site.competitors == ["https://a.sk/"]
 
-    listed = (await user_client.get("/api/companies")).json()
+    listed = (await user_client.get("/api/companies")).json()["rows"]
     assert {c["name"]: c["has_website"] for c in listed} == {"Kaderníctvo X": True, "Pekáreň bez webu": False}
 
 

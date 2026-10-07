@@ -1,146 +1,282 @@
-import { Search, Users } from "lucide-react";
+import { BellRing, Plus, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Banner, Card, EmptyState, PageHeader, Segmented, Spinner, Tag, TextInput } from "../components/ui";
-import type { Company } from "../lib/api";
+import { Bars, Donut, Legend } from "../components/charts";
+import { Banner, Button, Card, EmptyState, Field, PageHeader, Spinner, Tag, TextInput } from "../components/ui";
+import { api, type CrmStatus, type CustomerCard, type CustomerList } from "../lib/api";
 import { formatDate } from "../lib/format";
+import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
 
-type Filter = "all" | "website" | "none";
-const SOURCE_LABEL: Record<Company["source"], string> = { google: "Google Maps", osm: "OpenStreetMap", manual: "Added by you" };
+/** Status colours differ in lightness as well as hue, as the brief asks. */
+export const STATUS_COLOUR: Record<CrmStatus, string> = {
+  lead: "var(--neutral)",
+  audited: "var(--r5)",
+  contacted: "var(--r4)",
+  waiting: "var(--ok)",
+  interested: "var(--r3)",
+  proposal: "var(--r2)",
+  deal: "var(--good)",
+  not_interested: "var(--crit)",
+  no_answer: "var(--weak)",
+};
 
-function displayName(c: Company): string {
-  // Google-sourced businesses keep only their place_id; the name is reloaded on the customer card (stage 7).
-  return c.name ?? c.domain ?? (c.source === "google" ? "Business from Google Maps" : "Unnamed business");
+export function customerName(row: { name: string | null; domain: string | null }): string {
+  return row.name ?? row.domain ?? "Unnamed business";
 }
 
 export function Customers() {
-  const companies = useApi<Company[]>("/api/companies");
-  const [filter, setFilter] = useState<Filter>("all");
+  const list = useApi<CustomerList>("/api/companies");
+  const toast = useToast();
+  const [status, setStatus] = useState<CrmStatus | "">("");
+  const [project, setProject] = useState("");
+  const [website, setWebsite] = useState<"" | "yes" | "no">("");
   const [text, setText] = useState("");
-  const all = companies.data ?? [];
-  const counts = { all: all.length, website: all.filter((c) => c.has_website).length, none: all.filter((c) => !c.has_website).length };
+  const [adding, setAdding] = useState(false);
 
+  const data = list.data;
   const rows = useMemo(() => {
-    const q = text.trim().toLowerCase();
-    return (companies.data ?? []).filter(
-      (c) =>
-        (filter === "all" || (filter === "website") === c.has_website) &&
-        (!q || [c.name, c.domain, c.project].some((v) => v?.toLowerCase().includes(q))),
+    const needle = text.trim().toLowerCase();
+    return (data?.rows ?? []).filter(
+      (row) =>
+        (!status || row.status === status) &&
+        (!project || row.project === project) &&
+        (!website || (website === "yes") === row.has_website) &&
+        (!needle || [row.name, row.domain, row.project].some((value) => value?.toLowerCase().includes(needle))),
     );
-  }, [companies.data, filter, text]);
+  }, [data, status, project, website, text]);
+
+  if (list.error) return <Banner kind="error">{list.error.message}</Banner>;
+  if (!data) return list.loading ? <Spinner /> : null;
+
+  const stats = data.stats;
+  const slices = stats.by_status.map((row) => ({ label: row.label, value: row.count, color: STATUS_COLOUR[row.status] }));
 
   return (
     <>
       <PageHeader
-        eyebrow="CRM"
+        eyebrow="My workspace"
         title="Customers"
-        sub="Every business from your audits and searches. Statuses, notes and reminders arrive with the CRM stage."
+        sub={`${stats.total} in total · ${stats.open} still open · ${data.follow_ups.length} need a nudge`}
         actions={
-          <Link to="/search" className="btn">
-            <Search size={16} aria-hidden /> Find businesses
-          </Link>
+          <Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>
+            Add customer
+          </Button>
         }
       />
-      {companies.error && <Banner kind="error">{companies.error.message}</Banner>}
-      {companies.loading && !companies.data ? (
-        <Spinner />
-      ) : all.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title="No customers yet"
-          action={
-            <div className="row">
-              <Link to="/search" className="btn btn-primary">
-                <Search size={16} aria-hidden /> Find businesses
-              </Link>
-              <Link to="/audits/new" className="btn">
-                New audit
-              </Link>
-            </div>
-          }
-        >
-          Businesses appear here when you audit their website or add them from a search. Businesses without a website are kept as leads for a new
-          website.
-        </EmptyState>
-      ) : (
-        <Card>
-          <div className="stack">
-            <div className="row">
-              <Segmented<Filter>
-                label="Website filter"
-                value={filter}
-                onChange={setFilter}
-                options={[
-                  { value: "all", label: `All (${counts.all})` },
-                  { value: "website", label: `Has website (${counts.website})` },
-                  { value: "none", label: `No website (${counts.none})` },
-                ]}
-              />
-              <span className="spacer" />
-              <TextInput type="search" aria-label="Search customers" placeholder="Search name, domain or project" value={text} onChange={(e) => setText(e.target.value)} style={{ width: 280 }} />
-            </div>
-            <div className="table-box">
-              <table className="table" style={{ minWidth: 640 }}>
-                <thead>
-                  <tr>
-                    <th>Business</th>
-                    <th>Project</th>
-                    <th>Website</th>
-                    <th>Last score</th>
-                    <th>Added</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((c) => (
-                    <tr key={c.id}>
-                      <td>
-                        <span className="cell-main">{displayName(c)}</span>
-                        <span className="cell-sub">
-                          {SOURCE_LABEL[c.source]}
-                          {c.do_not_contact && (
-                            <>
-                              {" · "}
-                              <Tag color="var(--danger)">Do not contact</Tag>
-                            </>
-                          )}
-                          {c.manual_check && (
-                            <>
-                              {" · "}
-                              <Tag color={c.manual_check === "contact" ? "var(--accent)" : "var(--neutral)"}>
-                                {c.manual_check === "contact" ? "Checked: worth contacting" : "Checked: skipped"}
-                              </Tag>
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td>{c.project ?? <span className="muted">—</span>}</td>
-                      <td>
-                        {c.url ? (
-                          <a href={c.url} target="_blank" rel="noreferrer noopener">
-                            {c.domain}
-                          </a>
-                        ) : (
-                          <Tag color="var(--weak)">No website</Tag>
-                        )}
-                      </td>
-                      <td className="num">
-                        {c.last_score !== null && c.last_audit_id !== null ? (
-                          <Link to={`/audits/${c.last_audit_id}`}>{c.last_score} / 100</Link>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                      <td className="num">{formatDate(c.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {rows.length === 0 && <p className="muted">No customers match this filter.</p>}
-          </div>
+
+      {adding && <AddCustomer onDone={(message) => { setAdding(false); if (message) { toast(message); void list.reload(); } }} />}
+
+      {data.follow_ups.length > 0 && (
+        <Card title="Follow up" meta={`${data.follow_ups.length} waiting on you`} id="followups">
+          <ul className="follow-list">
+            {data.follow_ups.slice(0, 8).map((row) => (
+              <li key={row.id}>
+                <BellRing size={15} aria-hidden className="lvl-warn" />
+                <Link to={`/customers/${row.id}`} className="cell-main">
+                  {customerName(row)}
+                </Link>
+                <span className="cell-sub">
+                  {row.reason === "next_step"
+                    ? `${row.next_step || "Next step"} · due ${formatDate(row.next_step_at)}`
+                    : `Waiting for an answer since ${formatDate(row.status_at)}`}
+                </span>
+                <Tag color={STATUS_COLOUR[row.status]}>{row.status_label}</Tag>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
+
+      <div className="grid-crm">
+        <Card title="Funnel" meta="where everyone stands">
+          <Bars
+            bars={stats.funnel.map((row) => ({ key: row.status, label: row.label, value: row.count }))}
+            max={Math.max(1, ...stats.funnel.map((row) => row.count))}
+            selected={status || null}
+            onPick={(key) => setStatus((current) => (current === key ? "" : (key as CrmStatus)))}
+          />
+        </Card>
+        <Card title="Result" meta="of everyone contacted">
+          <div className="kpis">
+            <Kpi label="Contacted" value={stats.conversion.contacted} />
+            <Kpi label="Interested" value={stats.conversion.interested} sub={pct(stats.conversion.interested_pct)} />
+            <Kpi label="Deals" value={stats.conversion.deals} sub={pct(stats.conversion.deal_pct)} />
+            <Kpi label="Agreed" value={stats.deal_value ? `${stats.deal_value} €` : "—"} />
+            <Kpi label="Answer takes" value={stats.answer_days === null ? "—" : `${stats.answer_days} d`} />
+          </div>
+          <Weeks weeks={stats.weeks} />
+        </Card>
+        <Card title="By status" meta={`${stats.total} customers`}>
+          {slices.length === 0 ? (
+            <p className="muted">No customers yet.</p>
+          ) : (
+            <>
+              <Donut slices={slices} center={<strong className="num">{stats.total}</strong>} label="Customers by status" />
+              <Legend slices={slices} />
+            </>
+          )}
+        </Card>
+      </div>
+
+      <Card
+        title="All customers"
+        meta={`${rows.length} shown`}
+        id="list"
+      >
+        <div className="filters">
+          <div className="search">
+            <Search size={16} aria-hidden />
+            <TextInput value={text} onChange={(e) => setText(e.target.value)} placeholder="Search name, domain or project" aria-label="Search customers" />
+          </div>
+          <select className="select" value={status} onChange={(e) => setStatus(e.target.value as CrmStatus | "")} aria-label="Status">
+            <option value="">Every status</option>
+            {data.statuses.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.label}
+              </option>
+            ))}
+          </select>
+          <select className="select" value={project} onChange={(e) => setProject(e.target.value)} aria-label="Project">
+            <option value="">Every project</option>
+            {data.projects.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <select className="select" value={website} onChange={(e) => setWebsite(e.target.value as "" | "yes" | "no")} aria-label="Website">
+            <option value="">With and without a website</option>
+            <option value="yes">Has a website</option>
+            <option value="no">No website (lead)</option>
+          </select>
+        </div>
+
+        {rows.length === 0 ? (
+          <EmptyState icon={Users} title="Nobody here">Run an audit, search for businesses, or add a customer by hand.</EmptyState>
+        ) : (
+          <div className="table-box">
+            <table className="table" style={{ minWidth: 820 }}>
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Score</th>
+                  <th>Next step</th>
+                  <th>Last contact</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <Link to={`/customers/${row.id}`} className="cell-main">
+                        {customerName(row)}
+                      </Link>
+                      <span className="cell-sub">
+                        {row.has_website ? row.domain : "No website"}
+                        {row.project ? ` · ${row.project}` : ""}
+                        {row.do_not_contact ? " · do not contact" : ""}
+                      </span>
+                    </td>
+                    <td>
+                      <Tag color={STATUS_COLOUR[row.status]}>{row.status_label}</Tag>
+                    </td>
+                    <td className="num">{row.score ?? "—"}</td>
+                    <td>
+                      {row.next_step ? (
+                        <>
+                          <span className="cell-main">{row.next_step}</span>
+                          <span className="cell-sub">{formatDate(row.next_step_at)}</span>
+                        </>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="muted">{row.last_contact ? formatDate(row.last_contact) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </>
+  );
+}
+
+function pct(value: number | null): string | undefined {
+  return value === null ? undefined : `${value}%`;
+}
+
+function Kpi({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
+  return (
+    <div className="kpi">
+      <span className="kpi-label">{label}</span>
+      <span className="kpi-value num">{value}</span>
+      {sub && <span className="kpi-sub">{sub}</span>}
+    </div>
+  );
+}
+
+/** Outreach and deals week by week — the brief's line chart, drawn as two thin bars per week. */
+function Weeks({ weeks }: { weeks: { week: string; contacted: number; deals: number }[] }) {
+  if (weeks.length === 0) return <p className="muted">Contacts and deals appear here once you start logging them.</p>;
+  const max = Math.max(1, ...weeks.map((w) => Math.max(w.contacted, w.deals)));
+  return (
+    <div className="weeks" role="img" aria-label="Contacts and deals by week">
+      {weeks.map((week) => (
+        <div key={week.week} className="week" title={`${formatDate(week.week)}: ${week.contacted} contacted, ${week.deals} deals`}>
+          <span className="stack-bars">
+            <i style={{ height: `${(week.contacted / max) * 100}%`, background: "var(--r3)" }} />
+            <i style={{ height: `${(week.deals / max) * 100}%`, background: "var(--good)" }} />
+          </span>
+          <span className="week-label">{formatDate(week.week).slice(0, 5)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AddCustomer({ onDone }: { onDone: (message?: string) => void }) {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [project, setProject] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      const card = await api<CustomerCard>("/api/companies", { method: "POST", body: { name, url, project } });
+      onDone(`${customerName(card.customer)} added`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add the customer");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Add a customer" meta="a business without a website is a lead for a new one">
+      {error && <Banner kind="error">{error}</Banner>}
+      <div className="add-row">
+        <Field label="Business name">
+          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={name} onChange={(e) => setName(e.target.value)} maxLength={300} />}
+        </Field>
+        <Field label="Website" hint="Leave empty for a business that has none yet.">
+          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="example.sk" />}
+        </Field>
+        <Field label="Project">
+          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={project} onChange={(e) => setProject(e.target.value)} maxLength={200} />}
+        </Field>
+      </div>
+      <div className="row" style={{ gap: 8, marginTop: 12 }}>
+        <Button variant="primary" loading={busy} onClick={save}>
+          Add
+        </Button>
+        <Button onClick={() => onDone()}>Cancel</Button>
+      </div>
+    </Card>
   );
 }

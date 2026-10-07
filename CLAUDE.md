@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A website-audit SaaS for web designers (brief in Slovak: `docs/SPEC.sk.md`; SaaS translation and stage plan: `docs/ARCHITECTURE.md`). The brief is built **in stages, showing the user each result before continuing**; check the stage table in `docs/ARCHITECTURE.md` before starting new work. The brief also requires showing UI design proposals before writing any UI code.
 
-Stages 1–5 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
+Stages 1–5 and 7 are built (stage 6 was dropped at the owner's request): `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
 
 ## Commands (run from `core/`)
 
@@ -94,6 +94,9 @@ Invariants that span files:
   The services are listed in `keys.SERVICES`; a service that is dropped goes into `db.RETIRED_KEY_SERVICES`, which deletes its stored keys on start.
 - Competitor websites (`competitor_scans`) are compared with, not audited: no customer, no lead, no AI
   review, excluded from every statistic.
+- **The CRM** (`crm.py`, `routers/companies.py`): the status lives on `companies` and every change is also a `company_events` row, so the
+  timeline needs no second source of truth. A logged contact keeps the date, the way and a note - never who was spoken to. Audits are merged
+  into the timeline at read time from `audit_sites`. `GET /api/companies` answers the list, the follow-ups and the charts in one response.
 - The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.
   One audit runs at a time: its loop restarts itself after any failure, an audit interrupted by a restart is closed (never re-queued, which
   used to block every later audit), and `GET /api/audits/{id}` carries a `queue` field so the UI says what a waiting audit waits for.
