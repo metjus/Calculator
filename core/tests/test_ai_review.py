@@ -6,13 +6,15 @@ Nothing here calls the Claude API: the request is checked as data and scans use 
 from __future__ import annotations
 
 import base64
+import json
 
+import httpx2
 import pytest
 from conftest import needs_browser
 from test_scan import FAST
 
 from webaudit import Config, Scanner, Status
-from webaudit.ai_review import EFFORT, MODEL, AIReviewError, DesignReview, build_request, to_stored
+from webaudit.ai_review import EFFORT, MODEL, AIReviewError, ClaudeReviewer, DesignReview, build_request, to_stored
 from webaudit.checks.design_ai import grade_review
 from webaudit.models import Area, CheckResult
 from webaudit.scoring import rank_issues, score
@@ -111,3 +113,50 @@ async def test_scanner_asks_the_reviewer_with_screenshots(sites, trusted_transpo
     failed_check = {c.id: c for c in failed.checks}["design_ai.review"]
     assert failed_check.status is Status.NA and "key is not valid" in failed_check.summary
     assert failed.score is not None  # the rest of the audit still counts
+
+
+def _message(score_: int) -> dict:
+    answer = {
+        "score": score_,
+        "verdict": "Pôsobí zastarano.",
+        "strengths": ["Logo"],
+        "weaknesses": ["Hlavička: malé menu"],
+        "looks_dated": True,
+    }
+    return {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-opus-5-5",
+        "content": [{"type": "text", "text": json.dumps(answer)}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 2800, "output_tokens": 900},
+    }
+
+
+async def test_a_refused_server_side_fallback_does_not_cost_the_review() -> None:
+    """The fallback only matters when Claude declines; a 400 for it must not lose the review."""
+    sent: list[str | None] = []
+
+    def handler(request):
+        sent.append(request.headers.get("anthropic-beta"))
+        if len(sent) == 1:
+            return httpx2.Response(400, json={"type": "error", "error": {"type": "invalid_request_error", "message": "fallbacks: no"}})
+        return httpx2.Response(200, json=_message(61))
+
+    reviewer = ClaudeReviewer("sk-ant-test", http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+    stored = await reviewer(JPEG, None, "https://salon.sk/", "sk")
+    assert sent == ["server-side-fallback-2026-07-01", None]  # retried without the beta
+    assert stored["score"] == 61 and stored["input_tokens"] == 2800
+
+
+async def test_a_rejected_request_says_what_the_api_objected_to() -> None:
+    """A bare "Claude API answered 400" left the cause invisible in the log."""
+
+    def handler(_request):
+        return httpx2.Response(400, json={"type": "error", "error": {"type": "invalid_request_error", "message": "image too large"}})
+
+    reviewer = ClaudeReviewer("sk-ant-test", http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+    with pytest.raises(AIReviewError, match="image too large"):
+        await reviewer(JPEG, None, "https://salon.sk/", "sk")

@@ -199,6 +199,9 @@ Design: https://claude.ai/artifact/QGTafYBxFhXJX361mkCJzY (dashboard + website d
 - **Scoring**: `design_ai.review` (`checks/design_ai.py`) grades the review; `CheckResult.credit`
   carries the 0–100 straight into the area score, so a 72 is worth more than a 61 although both pass.
   Without a review the check is `na` and the score re-normalises over the other areas, as before.
+- **Map tiles**: OpenStreetMap only, through the server-side tile proxy. The Mapy.com
+  alternative was removed in 0.5.2 at the owner's request; keys saved for it are deleted
+  on start (`db.RETIRED_KEY_SERVICES`).
 - **Where it runs**: the worker passes a reviewer only when the audit asked for it
   (`Audit.options.ai_review`) and a Claude key exists; `POST /api/audits/{id}/sites/{sid}/ai-review`
   reviews one already-scanned website from its stored screenshots and rescores it. Tests inject a fake

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "webaudit-desktop"
-version = "0.5.1"
+version = "0.5.2"
 description = "Web Audit as a Windows desktop program (WebAudit.exe): local server + native window, data next to the exe."
 requires-python = ">=3.11"
 # Install the core and the API first: pip install -e "../core[browser]" -e ../api

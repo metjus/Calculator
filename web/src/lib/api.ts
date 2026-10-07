@@ -47,7 +47,7 @@ export async function api<T>(path: string, options: { method?: string; body?: Js
 export type Me = { email: string; workspace_id: number; workspace_name: string; local?: boolean; version?: string };
 
 export type KeyState = {
-  service: "pagespeed" | "claude" | "google_places" | "mapy";
+  service: "pagespeed" | "claude" | "google_places";
   configured: boolean;
   last4: string | null;
   test_ok: boolean | null;
@@ -141,7 +141,6 @@ export type SearchOptions = {
   radius_km: { min: number; max: number; default: number };
   map_tile_url: string;
   map_attribution: string;
-  map_source: "osm" | "mapy";
 };
 export type SearchParams = {
   country: string;

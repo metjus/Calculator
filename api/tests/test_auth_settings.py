@@ -7,7 +7,9 @@ import pytest
 from conftest import signup
 from sqlalchemy import select
 
-from webaudit_api.models import ApiKey
+from webaudit_api.db import create_schema
+from webaudit_api.keys import SERVICES
+from webaudit_api.models import ApiKey, Workspace
 
 
 async def test_signup_me_logout_login(client: httpx.AsyncClient) -> None:
@@ -60,7 +62,7 @@ async def test_api_keys_are_encrypted_masked_and_testable(user_client: httpx.Asy
         row = await db.scalar(select(ApiKey))
         assert secret not in row.encrypted and app.state.keybox.decrypt(row.encrypted) == secret
 
-    async def fake_test(service: str, key: str, settings: object, transport: object = None) -> tuple[bool, str]:
+    async def fake_test(service: str, key: str, settings: object) -> tuple[bool, str]:
         assert key == secret and service == "pagespeed"
         return True, "Key is valid"
 
@@ -122,3 +124,19 @@ def test_secret_key_is_kept_in_the_data_folder(tmp_path, monkeypatch) -> None:
     assert Settings().secret_key == first  # survives a restart
     monkeypatch.setenv("WEBAUDIT_SECRET_KEY", "from-env")
     assert Settings().secret_key == "from-env"
+
+
+async def test_a_key_of_a_removed_service_is_deleted_on_start(app, settings) -> None:
+    """Mapy.com map tiles were dropped; a key saved for them must not stay in the database."""
+    async with app.state.sessionmaker() as db:
+        workspace = Workspace(name="Test")
+        db.add(workspace)
+        await db.flush()
+        db.add(ApiKey(workspace_id=workspace.id, service="mapy", encrypted="x", last4="1234"))
+        await db.commit()
+
+    await create_schema(app.state.engine)  # the next start of the program
+
+    async with app.state.sessionmaker() as db:
+        assert await db.scalar(select(ApiKey).where(ApiKey.service == "mapy")) is None
+    assert "mapy" not in SERVICES

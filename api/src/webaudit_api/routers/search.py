@@ -36,7 +36,6 @@ SKU = "text_search_enterprise"
 # OSM services ask for a User-Agent that names the application and where to find it.
 USER_AGENT = f"WebAudit/{__version__} (+https://github.com/metjus/Calculator)"
 TILE_PATH = "/api/search/tiles/{z}/{x}/{y}"
-MAPY_ATTRIBUTION = '<a href="https://api.mapy.com/copyright" target="_blank" rel="noopener">&copy; Seznam.cz a.s. a další</a>'
 TILE_REFRESH_DAYS = 30
 TILE_BROWSER_CACHE = 7 * 24 * 3600
 
@@ -195,17 +194,14 @@ async def options(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     google = await get_key(db, keybox, user.workspace_id, "google_places")
-    map_source = "mapy" if await get_key(db, keybox, user.workspace_id, "mapy") else "osm"
     return {
         "countries": COUNTRIES,
         "categories": [{"id": c["id"], "label": c["label"]} for c in categories()],
         "google_configured": bool(google),
         "osm_attribution": OSM_ATTRIBUTION,
         "radius_km": {"min": 5, "max": 50, "default": 15},
-        # The source in the URL keeps the browser from mixing cached tiles of the two sources.
-        "map_tile_url": f"{TILE_PATH}?source={map_source}",
-        "map_source": map_source,
-        "map_attribution": MAPY_ATTRIBUTION if map_source == "mapy" else settings.map_attribution,
+        "map_tile_url": TILE_PATH,
+        "map_attribution": settings.map_attribution,
     }
 
 
@@ -225,18 +221,17 @@ def _fill(template: str, z: int, x: int, y: int) -> str:
     return template
 
 
-async def _fetch_tile(request: Request, source: str, url: str, params: dict[str, str]) -> tuple[bytes | None, str]:
-    """Download one tile; on failure say why (never with the URL, which may carry the key)."""
+async def _fetch_tile(request: Request, url: str) -> tuple[bytes | None, str]:
+    """Download one tile; on failure say why."""
     host = httpx.URL(url).host
     state = request.app.state
     if not hasattr(state, "tile_slots"):
-        # OSM's volunteer servers ask for few parallel downloads; Mapy.com is a paid-for API.
-        state.tile_slots = {"osm": asyncio.Semaphore(2), "mapy": asyncio.Semaphore(6)}
+        state.tile_slots = asyncio.Semaphore(2)  # OSM's volunteer servers ask for few parallel downloads
         state.tile_problems = set()
     problem, status_code = "", None
-    async with state.tile_slots[source], _client(request) as client:
+    async with state.tile_slots, _client(request) as client:
         try:
-            response = await client.get(url, params=params, timeout=15.0)
+            response = await client.get(url, timeout=15.0)
             status_code = response.status_code
             if status_code == 200 and _tile_type(response.content):
                 return response.content, ""
@@ -244,9 +239,7 @@ async def _fetch_tile(request: Request, source: str, url: str, params: dict[str,
             problem = f"could not reach {host} ({exc.__class__.__name__})"
     if not problem:
         problem = f"{host} answered HTTP {status_code}"
-        if source == "mapy" and status_code in (401, 403):
-            problem = "Mapy.com did not accept the key saved in Settings"
-        elif status_code == 403:
+        if status_code == 403:
             problem = f"{host} refused the map tiles (HTTP 403)"
         elif status_code == 200:
             problem = f"{host} sent something other than a map image"
@@ -263,30 +256,20 @@ async def tile(
     y: int,
     request: Request,
     user: User = Depends(current_user),
-    db: AsyncSession = Depends(get_db),
-    keybox: KeyBox = Depends(get_keybox),
     settings: Settings = Depends(get_settings),
 ) -> Response:
     """Map preview tile, fetched by the server rather than the browser.
 
     tile.openstreetmap.org blocks browsers that send no usable Referer, as the desktop window on
-    127.0.0.1 does. From here the request carries our User-Agent, and OSM tiles are kept in
-    <data>/tiles so each is downloaded once. With a Mapy.com key in Settings, tiles come from
-    Mapy.com instead (not stored, as its terms ask).
+    127.0.0.1 does. From here the request carries our User-Agent, and tiles are kept in
+    <data>/tiles so each is downloaded once.
     """
     if not (0 <= z <= 18 and 0 <= x < 2**z and 0 <= y < 2**z):
         raise HTTPException(404, "No such tile")
-    mapy_key = await get_key(db, keybox, user.workspace_id, "mapy")
-    if mapy_key:
-        data, problem = await _fetch_tile(request, "mapy", _fill(settings.mapy_tile_url, z, x, y), {"apikey": mapy_key})
-        if data is None:
-            raise HTTPException(status.HTTP_502_BAD_GATEWAY, problem)
-        return Response(data, media_type=_tile_type(data), headers={"Cache-Control": "private, max-age=86400"})
-
     path = settings.data_dir / "tiles" / str(z) / str(x) / str(y)
     cached = path.read_bytes() if path.is_file() else None
     if cached is None or time.time() - path.stat().st_mtime > TILE_REFRESH_DAYS * 86400:
-        fresh, problem = await _fetch_tile(request, "osm", _fill(settings.map_tile_url, z, x, y), {})
+        fresh, problem = await _fetch_tile(request, _fill(settings.map_tile_url, z, x, y))
         if fresh:
             path.parent.mkdir(parents=True, exist_ok=True)
             partial = path.with_name(f"{path.name}.{os.getpid()}.part")

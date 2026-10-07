@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,7 +108,6 @@ async def save_key(
 @router.post("/keys/{service}/test", response_model=KeyState)
 async def test_saved_key(
     service: str,
-    request: Request,
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     keybox: KeyBox = Depends(get_keybox),
@@ -119,8 +118,7 @@ async def test_saved_key(
     key = keybox.decrypt(row.encrypted) if row else None
     if row is None or key is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Save a key first")
-    transport = getattr(request.app.state, "search_transport", None)  # tests replace external services
-    row.test_ok, row.test_message = await test_key(service, key, settings, transport)
+    row.test_ok, row.test_message = await test_key(service, key, settings)
     row.tested_at = datetime.now(UTC)
     await db.commit()
     return _state(service, row)

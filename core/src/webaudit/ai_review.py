@@ -10,6 +10,7 @@ are stored, so a phone number read off a screenshot never reaches the database.
 from __future__ import annotations
 
 import base64
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -17,6 +18,8 @@ import anthropic
 from pydantic import BaseModel, Field
 
 from .redact import redact_text
+
+log = logging.getLogger("webaudit.ai_review")
 
 MODEL = "claude-opus-5-5"
 EFFORT = "medium"  # a visual judgement with a short answer; raise only if reviews look shallow
@@ -101,17 +104,39 @@ def to_stored(review: DesignReview, *, language: str, model: str, input_tokens: 
     }
 
 
+def api_detail(exc: anthropic.APIStatusError) -> str:
+    """What the API said was wrong. Without it a 400 is unfixable from the log."""
+    body = exc.body
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])[:300]
+    return (str(getattr(exc, "message", "")) or f"HTTP {exc.status_code}")[:300]
+
+
 class ClaudeReviewer:
     """Sends the review request with the user's own Claude API key."""
 
-    def __init__(self, api_key: str, *, timeout: float = 120.0) -> None:
+    def __init__(self, api_key: str, *, timeout: float = 120.0, http_client: Any | None = None) -> None:
         self.api_key = api_key
         self.timeout = timeout
+        self.http_client = http_client  # tests pass a mock transport instead of reaching the API
 
     async def __call__(self, desktop: bytes, mobile: bytes | None, url: str, language: str) -> dict[str, Any]:
-        client = anthropic.AsyncAnthropic(api_key=self.api_key, max_retries=2, timeout=self.timeout)
+        request = build_request(desktop, mobile, url, language)
+        options = {"http_client": self.http_client} if self.http_client is not None else {}
+        client = anthropic.AsyncAnthropic(api_key=self.api_key, max_retries=2, timeout=self.timeout, **options)
         try:
-            response = await client.beta.messages.parse(**build_request(desktop, mobile, url, language), output_format=DesignReview)
+            try:
+                response = await self._send(client, request)
+            except anthropic.BadRequestError as exc:
+                # ``fallbacks`` only matters when Claude declines a review; a key or an account
+                # the beta is not enabled for must not cost the user the review itself.
+                plain = {key: value for key, value in request.items() if key not in ("betas", "fallbacks")}
+                if plain == request:
+                    raise AIReviewError(f"Claude API rejected the request: {api_detail(exc)}") from exc
+                log.warning("Claude rejected the review request (%s); retrying without the server-side fallback", api_detail(exc))
+                response = await self._send(client, plain)
         except anthropic.AuthenticationError as exc:
             raise AIReviewError("Claude API key is not valid (Settings)") from exc
         except anthropic.PermissionDeniedError as exc:
@@ -123,7 +148,7 @@ class ClaudeReviewer:
         except anthropic.APIConnectionError as exc:
             raise AIReviewError("Could not reach the Claude API") from exc
         except anthropic.APIStatusError as exc:
-            raise AIReviewError(f"Claude API answered {exc.status_code}") from exc
+            raise AIReviewError(f"Claude API answered {exc.status_code}: {api_detail(exc)}") from exc
         finally:
             await client.close()
         if response.stop_reason == "refusal":
@@ -138,3 +163,6 @@ class ClaudeReviewer:
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
         )
+
+    async def _send(self, client: anthropic.AsyncAnthropic, request: dict[str, Any]) -> Any:
+        return await client.beta.messages.parse(**request, output_format=DesignReview)

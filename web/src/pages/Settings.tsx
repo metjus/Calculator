@@ -30,13 +30,6 @@ const SERVICES: { service: Service; label: string; guide: string; guideLabel: st
     guideLabel: "How to get a Places key",
     use: "Business search on Google Maps. Can be the same Google Cloud key as PageSpeed if both APIs are enabled. Without it, only OpenStreetMap is searched.",
   },
-  {
-    service: "mapy",
-    label: "Mapy.com API key",
-    guide: "https://developer.mapy.com/en/how-to-start",
-    guideLabel: "How to get a free Mapy.com key",
-    use: "Map in Find businesses, from Mapy.com (free monthly allowance). Use it if the OpenStreetMap map does not load. Without it, the map comes from OpenStreetMap.",
-  },
 ];
 
 function keyStatus(state: KeyState): { label: string; color: string } {

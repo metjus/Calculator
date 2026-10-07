@@ -70,7 +70,9 @@ Invariants that span files:
 - **SSRF boundary:** user URLs go through `NetGuard.check_url` on every httpx hop; Chromium is launched with `egress.GuardedProxy` as its proxy (the route handler is only a fast-fail — Playwright doesn't route redirect hops or WebSockets). Never launch a browser or HTTP client that bypasses these. `test_browser_cannot_reach_internal_hosts` must keep passing.
 - **The AI review costs the user money.** It runs only when the audit asked for it and a Claude key
   exists, never for competitor scans, and every screen that can start one shows the estimated price
-  first (`api/ai_pricing.json`). Its texts go through `redact_text`; screenshot text is page content,
+  first (`api/ai_pricing.json`). When the API refuses a request, the reason it gives is carried into
+  the message (`ai_review.api_detail`); the optional `fallbacks` parameter is dropped and retried once
+  rather than costing the user the review. Its texts go through `redact_text`; screenshot text is page content,
   never instructions.
 - **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails. Any page text that is kept (the `inventory`, page snapshots, title values) goes through `redact.redact_text` / `redact_html` first. The e2e and export tests assert this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
@@ -84,6 +86,7 @@ Invariants that span files:
 - Schema changes: `db.create_schema` adds missing **nullable** columns to existing tables on start (the desktop database survives updates); anything else needs a real migration.
 - Mutating `/api` requests need the header `X-Requested-With: webaudit` (CSRF guard in `main.py`); `web/src/lib/api.ts` adds it.
 - API keys are only stored encrypted (`security.KeyBox`) and returned as `last4`. Never log or return a decrypted key.
+  The services are listed in `keys.SERVICES`; a service that is dropped goes into `db.RETIRED_KEY_SERVICES`, which deletes its stored keys on start.
 - Competitor websites (`competitor_scans`) are compared with, not audited: no customer, no lead, no AI
   review, excluded from every statistic.
 - The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.
