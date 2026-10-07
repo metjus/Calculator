@@ -124,10 +124,30 @@ def _esc(text: Any) -> str:
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("\n", "<br>")
 
 
-def _tone(score: int | None) -> str:
+# One colour per status, dark enough to be read as text (>= 4.5:1 on the page) and used for the
+# dot and the bar as well, with a light step of the same hue as the meter track (>= 3:1 against
+# the bar). Measured, not picked by eye - see "Stage 5 as built" in docs/ARCHITECTURE.md.
+STATUS_COLOURS = {
+    "critical": ("#9b1111", "#f6dada"),
+    "weak": ("#c05519", "#f8e3d6"),
+    "ok": ("#94701b", "#f3ead2"),
+    "good": ("#128460", "#d9f0e7"),
+}
+NEUTRAL = ("#57524a", "#f0ece4")
+
+
+def status_of(score: int | None) -> str:
     if score is None:
-        return "#716b63"
-    return "#9b1111" if score < 40 else "#cb5a1a" if score < 60 else "#daa932" if score < 80 else "#17a478"
+        return ""
+    return "critical" if score < 40 else "weak" if score < 60 else "ok" if score < 80 else "good"
+
+
+def _tone(score: int | None) -> str:
+    return STATUS_COLOURS.get(status_of(score), NEUTRAL)[0]
+
+
+def _track(score: int | None) -> str:
+    return STATUS_COLOURS.get(status_of(score), NEUTRAL)[1]
 
 
 # --------------------------------------------------------------------- data
@@ -234,18 +254,6 @@ def _tiles(content: PdfContent, config: Config) -> list[dict[str, str]]:
 # --------------------------------------------------------------------- html
 
 
-def _ring(score: int) -> str:
-    circumference = 2 * 3.14159 * 42
-    return (
-        '<svg width="104" height="104" viewBox="0 0 104 104" aria-hidden="true">'
-        '<circle cx="52" cy="52" r="42" fill="none" stroke="#17504f" stroke-width="9"/>'
-        f'<circle cx="52" cy="52" r="42" fill="none" stroke="#f0a35a" stroke-width="9" stroke-linecap="round" '
-        f'stroke-dasharray="{circumference * score / 100:.1f} {circumference:.1f}" transform="rotate(-90 52 52)"/>'
-        f'<text x="52" y="58" text-anchor="middle" font-family="Plex" font-size="30" font-weight="300" fill="#fffdf9">{score}</text>'
-        "</svg>"
-    )
-
-
 STYLE = """
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Plex',sans-serif;-webkit-font-smoothing:antialiased}
@@ -258,24 +266,34 @@ h1{font-weight:300;font-size:30pt;line-height:1.15;letter-spacing:-.01em;color:#
 h2{font-weight:500;font-size:15pt;margin-bottom:5mm}
 h3{font-weight:600;font-size:11.5pt}
 .muted{color:#57524a}.small{font-size:9pt}
-.hero{background:#0b6e72;color:#fffdf9;padding:14mm 18mm 12mm}
-.hero .eyebrow{color:#9fd3d2}
-.hero .logo{max-height:__LOGOMM__mm;max-width:60mm;margin-bottom:7mm;display:block}
-.hero .url{color:#cfe8e7;font-size:11pt;margin-top:1.5mm}
-.ring{display:flex;align-items:center;gap:7mm;margin-top:10mm}
-.ring .cat{font-size:13pt;font-weight:500}
-.ring .sub{font-size:9.5pt;color:#cfe8e7;max-width:78mm;margin-top:1mm}
-.tiles{display:flex;gap:4mm;margin-bottom:7mm}
-.tile{flex:1;border:1px solid #e2ddd4;border-radius:6px;padding:4mm}
-.tile b{display:block;font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:#716b63;font-weight:500}
-.tile .v{font-size:14pt;font-weight:500;margin-top:1.5mm}
-.lead{font-size:11pt;line-height:1.65}
-.arow{display:flex;align-items:center;gap:4mm;font-size:9.5pt;margin-bottom:2mm}
-.arow .an{flex:0 0 42mm;color:#57524a}
-.arow .at{flex:1;height:4mm;background:#f0ece4;border-radius:2px;position:relative;max-width:70mm}
-.arow .at i{position:absolute;inset:0 auto 0 0;border-radius:2px}
-.arow .av{flex:0 0 8mm;text-align:right;font-variant-numeric:tabular-nums}
-.areas2{columns:2;column-gap:10mm}
+.band{height:74mm;background:linear-gradient(135deg,#0b6e72 0%,#0a5e63 55%,#084f52 100%);padding:14mm 18mm 0;color:#fffdf9;position:relative}
+.band .eyebrow{color:#cfe8e7}
+.band .logo{max-height:__LOGOMM__mm;max-width:52mm;margin-bottom:6mm;display:block}
+.band h1{margin:5mm 0 2mm}
+.band .url{color:#dcefed;font-size:11pt}
+.band .mark{position:absolute;right:18mm;top:14mm;font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#cfe8e7}
+.scorecard{position:absolute;left:18mm;right:18mm;top:56mm;background:#fffdf9;border-radius:10px;
+           box-shadow:0 1px 0 #e2ddd4, 0 10px 30px rgba(13,40,38,.13);padding:9mm 10mm 8mm;display:flex;gap:10mm;align-items:flex-start}
+.scorecard .l{flex:0 0 62mm}
+.scorecard .r{flex:1;border-left:1px solid #e2ddd4;padding-left:9mm}
+.scorecard .r .t{margin-bottom:4.5mm}
+.scorecard .r .t:last-child{margin-bottom:0}
+.scorecard .r .t b{display:block;font-size:7.5pt;letter-spacing:.13em;text-transform:uppercase;color:#6a645c;font-weight:500;margin-bottom:1mm}
+.scorecard .r .t span{font-size:12pt;font-weight:500}
+.hero{font-weight:300;font-size:86pt;line-height:.86;letter-spacing:-.035em}
+.hero small{font-size:14pt;font-weight:400;color:#716b63;letter-spacing:0;margin-left:3mm}
+.meter{height:4mm;border-radius:2mm;position:relative;overflow:hidden;margin-top:5mm}
+.meter i{position:absolute;inset:0 auto 0 0;border-radius:2mm}
+.verdict{display:flex;align-items:center;gap:2.2mm;font-size:10pt;font-weight:500;margin-top:4mm;color:#1d1b18}
+.verdict i{width:2.6mm;height:2.6mm;border-radius:50%;display:block;flex:0 0 auto}
+.pad.below{padding-top:62mm}
+.lead{font-size:11pt;line-height:1.7;max-width:142mm}
+.arow{display:flex;align-items:center;gap:4mm;font-size:9.5pt;margin-bottom:2.2mm}
+.arow .an{flex:0 0 40mm;color:#57524a}
+.arow .at{flex:1;height:3mm;background:#f0ece4;border-radius:1.5mm;position:relative;max-width:58mm}
+.arow .at i{position:absolute;inset:0 auto 0 0;border-radius:1.5mm}
+.arow .av{flex:0 0 7mm;text-align:right;color:#57524a}
+.areas2{columns:2;column-gap:12mm}
 .cards{display:flex;flex-direction:column;gap:4mm;margin-top:4mm}
 .card{border:1px solid #e2ddd4;border-radius:6px;padding:5mm;display:flex;gap:5mm}
 .n{flex:0 0 9mm;height:9mm;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:10pt;background:#9b1111;color:#fff}
@@ -332,13 +350,15 @@ def build_html(content: PdfContent, config: Config) -> str:
         )
 
     # ---------------------------------------------------------- cover
+    # The band carries the brand, the card below it overlaps the band's edge and holds the
+    # three numbers the owner looks for first. One number = one hero figure plus a meter;
+    # a ring would say the same thing twice (and its arc never reached 3:1 in print).
     logo = ""
     if content.profile.logo:
         logo = f'<img class="logo" src="{_data_uri(content.profile.logo, _image_type(content.profile.logo))}" alt="">'
-    ring = _ring(score.total) if score else ""
     category = category_label(config, score.category.value, language) if score else ""
     tiles = "".join(
-        f'<div class="tile"><b>{_esc(t["label"])}</b><div class="v" style="color:{t["colour"]}">{_esc(t["value"])}</div></div>'
+        f'<div class="t"><b>{_esc(t["label"])}</b><span style="color:{t["colour"]}">{_esc(t["value"])}</span></div>'
         for t in _tiles(content, config)
     )
     areas = "".join(
@@ -348,25 +368,31 @@ def build_html(content: PdfContent, config: Config) -> str:
         for name, value in _areas(content, config)
     )
     summary = content.summary if content.summary is not None else default_summary(content, config, len(issues))
+    card = ""
+    if score:
+        colour, track = _tone(score.total), _track(score.total)
+        card = f"""<div class="scorecard">
+    <div class="l">
+      <div class="hero">{score.total}<small>/ 100</small></div>
+      <div class="meter" style="background:{track}"><i style="width:{score.total}%;background:{colour}"></i></div>
+      <div class="verdict"><i style="background:{colour}"></i>{_esc(label("score_label"))} {_esc(category.lower())}</div>
+    </div>
+    {f'<div class="r">{tiles}</div>' if tiles else ""}
+  </div>"""
     pages.append(
         f"""<section class="page">
-  <div class="hero">{logo}
+  <div class="band">{logo}
     <div class="eyebrow">{_esc(label("doc_title"))}</div>
     <h1>{_esc(client)}</h1>
     <div class="url">{_esc(domain)} · {_esc(today)}</div>
-    {
-            f'<div class="ring">{ring}<div><div class="cat">{_esc(label("score_label"))} {_esc(category.lower())}</div>'
-            f'<div class="sub">{_esc(label("score_note"))}</div></div></div>'
-            if score
-            else ""
-        }
+    <div class="mark">{_esc(content.profile.name)}</div>
   </div>
-  <div class="pad">
-    {f'<div class="tiles">{tiles}</div>' if tiles else ""}
+  {card}
+  <div class="pad{" below" if card else ""}">
     <p class="lead">{_esc(summary)}</p>
     {
-            f'<div class="eyebrow" style="margin-top:10mm">{_esc(label("areas_eyebrow"))}</div>'
-            f'<div class="areas2" style="margin-top:4mm">{areas}</div>'
+            f'<div class="eyebrow" style="margin-top:12mm">{_esc(label("areas_eyebrow"))}</div>'
+            f'<div class="areas2" style="margin-top:5mm">{areas}</div>'
             if areas
             else ""
         }
@@ -518,6 +544,7 @@ def default_offer(content: PdfContent, config: Config, issues: list[dict[str, An
 
 
 __all__ = [
+    "STATUS_COLOURS",
     "OfferOption",
     "PdfContent",
     "Profile",
@@ -529,5 +556,6 @@ __all__ = [
     "qr_svg",
     "render",
     "safe_pdf_name",
+    "status_of",
     "vcard",
 ]

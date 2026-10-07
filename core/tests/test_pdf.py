@@ -10,6 +10,7 @@ from conftest import needs_browser
 from webaudit import Config, Status
 from webaudit.models import Area, CheckResult, Issue, ScanResult, SiteState
 from webaudit.pdf import (
+    STATUS_COLOURS,
     OfferOption,
     PdfContent,
     Profile,
@@ -20,6 +21,7 @@ from webaudit.pdf import (
     qr_svg,
     render,
     safe_pdf_name,
+    status_of,
     vcard,
 )
 from webaudit.scoring import score
@@ -66,6 +68,28 @@ def test_report_has_every_problem_in_three_parts() -> None:
     assert "180 €" in html and "Odporúčam" in html and "ozvite sa a dohodneme sa" in html
     assert "<svg" in html and "IČO 12345678" in html  # the vCard QR and the operator's details
     assert "Hodnotenie po oblastiach" in html and "Mobil" in html  # areas in the report language
+    # One number is a hero figure plus a meter, never a ring: a ring repeats the number inside it
+    # and its arc never reached the 3:1 a graphical object needs in print.
+    assert 'class="hero"' in html and 'class="meter"' in html and "<circle" not in html
+    assert STATUS_COLOURS[status_of(item.result.score.total)][0] in html  # the measured, text-safe step
+
+
+def test_every_status_colour_is_readable_as_text_and_as_a_bar() -> None:
+    """The cover states the verdict in words and colour; the colour has to carry its weight."""
+
+    def luminance(colour: str) -> float:
+        channels = [int(colour.lstrip("#")[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+        channels = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+    def contrast(one: str, two: str) -> float:
+        light, dark = sorted((luminance(one), luminance(two)), reverse=True)
+        return (light + 0.05) / (dark + 0.05)
+
+    page = "#fffdf9"
+    for status, (ink, track) in STATUS_COLOURS.items():
+        assert contrast(ink, page) >= 4.5, f"{status} is too light to read as text"
+        assert contrast(ink, track) >= 3.0, f"{status} bar does not stand out from its track"
 
 
 def test_nothing_in_the_report_comes_from_the_network() -> None:
@@ -91,6 +115,13 @@ def test_language_and_the_operator_s_choices_decide_what_is_printed() -> None:
     picked = content(summary="Vlastné zhrnutie.", offer=[OfferOption(title="Nový web", price="od 900 €", description="", recommended=True)])
     html = build_html(picked, config)
     assert "Vlastné zhrnutie." in html and "od 900 €" in html
+
+
+def test_the_logo_is_printed_in_the_band() -> None:
+    with_logo = content()
+    with_logo.profile = Profile(name="Matúš Š.", phone="+421 900 123 456", logo=b"\x89PNG\r\n\x1a\nfake")
+    html = build_html(with_logo, Config.load())
+    assert 'class="logo" src="data:image/png;base64,' in html
 
 
 def test_the_qr_code_carries_only_the_operator_s_own_contact() -> None:

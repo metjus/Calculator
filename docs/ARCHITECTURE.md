@@ -263,10 +263,17 @@ the score ring and the three offer boxes).
   and the QR code are inlined as `data:` URIs and the renderer **aborts every network
   request** – making a PDF reaches nothing, which keeps the SSRF boundary intact and lets the
   desktop app work offline.
-- **Pages**: cover (logo, business name, score ring, three signal tiles, opening paragraph,
-  score by area), the problems three to a page in the three-part wording, the screenshots and
+- **Pages**: cover, the problems three to a page in the three-part wording, the screenshots and
   the competitor comparison, and the offer page with the vCard QR. Pages that have no data are
   left out.
+- **The cover** (the owner picked it from three proposals): a petrol band carrying the logo,
+  the business name and the date, with a white card overlapping its lower edge that holds the
+  score and the three signal facts; below it the opening paragraph and the score by area.
+  The score is a **hero figure plus a meter**, never a ring - a ring repeats the number printed
+  inside it, and its arc did not reach the 3:1 a graphical object needs. Every status has one
+  measured colour used for the word, the dot and the bar (>= 4.5:1 as text on the page, >= 3:1
+  against its track): critical `#9b1111`, weak `#c05519`, ok `#94701b`, good `#128460`.
+  `test_every_status_colour_is_readable_as_text_and_as_a_bar` keeps them honest.
 - **Texts** live in `defaults/texts.json` under `pdf` (SK/CS/EN, plus month names and the
   default wording of the three offer options), so they change without touching code.
 - **No price list.** The brief's per-problem prices were dropped at the owner's request: the
