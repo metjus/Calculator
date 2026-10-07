@@ -3,7 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ClaudeExport, Screenshots } from "../components/SiteParts";
 import { Banner, Button, Card, PageHeader, ProgressBar, ScoreBadge, Spinner, Tag } from "../components/ui";
-import { api, type AuditDetail, type Site, type SiteState } from "../lib/api";
+import { api, type AuditDetail, type QueueInfo, type Site, type SiteState } from "../lib/api";
 import { AUDIT_STATUS_LABEL, formatDuration, formatTime, hostOf, plural, SITE_STATE_LABEL } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
@@ -78,6 +78,14 @@ export function AuditRun() {
     };
   }, [id, reload, setData]);
 
+  // A queued audit sends nothing until it starts, so ask again what it is waiting for.
+  const queued = detail.data?.status === "queued";
+  useEffect(() => {
+    if (!queued) return;
+    const timer = window.setInterval(() => void reload(), 5000);
+    return () => window.clearInterval(timer);
+  }, [queued, reload]);
+
   if (detail.error) return <Banner kind="error">{detail.error.message}</Banner>;
   const audit = detail.data;
   if (!audit) return <Spinner />;
@@ -133,6 +141,13 @@ export function AuditRun() {
         }
       />
 
+      {audit.queue?.worker === "stopped" && (
+        <Banner kind="error">
+          <strong>The audit worker is not running, so this audit cannot start.</strong> Please close and start Web Audit again.
+          {audit.queue.worker_error ? ` Last error: ${audit.queue.worker_error}` : ""}
+        </Banner>
+      )}
+
       <Card title="Progress">
         <div className="stack">
           <div className="run-head">
@@ -148,7 +163,7 @@ export function AuditRun() {
                 <strong>{current.url}</strong>: {current.step}
               </>
             ) : active ? (
-              <span className="muted">{audit.status === "queued" ? "Waiting for a free worker…" : "Starting…"}</span>
+              <QueuedNote audit={audit} />
             ) : null}
           </div>
           {summary && !active && (
@@ -172,6 +187,22 @@ export function AuditRun() {
       </div>
     </>
   );
+}
+
+/** One audit runs at a time: say what this one waits for instead of "waiting for a free worker". */
+function QueuedNote({ audit }: { audit: AuditDetail }) {
+  if (audit.status !== "queued") return <span className="muted">Starting…</span>;
+  const queue: QueueInfo | null = audit.queue;
+  if (queue?.worker === "stopped") return <span className="muted">The audit worker is not running – start the program again.</span>;
+  if (queue?.running_audit_id)
+    return (
+      <span className="muted">
+        <Link to={`/audits/${queue.running_audit_id}`}>Audit #{queue.running_audit_id}</Link> is running; this one starts right after it
+        {queue.ahead > 0 ? ` (${plural(queue.ahead, "audit")} before it in the queue)` : ""}. You can stop the running audit to begin now.
+      </span>
+    );
+  if (queue && queue.ahead > 0) return <span className="muted">{plural(queue.ahead, "audit")} in the queue before this one…</span>;
+  return <span className="muted">Starting…</span>;
 }
 
 function LiveLog({ lines }: { lines: LogLine[] }) {

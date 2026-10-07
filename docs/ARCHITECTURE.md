@@ -136,7 +136,16 @@ What exists now, and where it deliberately differs from the target picture above
   oldest queued audit (`FOR UPDATE SKIP LOCKED` on Postgres), runs
   `Scanner.scan_many()` and writes every `ProgressEvent` as an `audit_events` row.
   It runs inside the API process by default (`WEBAUDIT_INPROCESS_WORKER`) or
-  separately as `webaudit-worker`. Running audits are re-queued on restart.
+  separately as `webaudit-worker`. The loop restarts itself after any failure, so
+  a queue is never left without a worker, and `GET /api/audits/{id}` returns a
+  `queue` field (audits ahead, the audit running now, worker state) that the
+  progress page shows instead of a bare "waiting". An audit interrupted by a
+  restart is **closed, not re-queued**: re-running it would have blocked whatever
+  the user starts next, every time the desktop window was closed mid-audit
+  (fixed in 0.5.1). Checked websites keep their results; the rest become
+  `cancelled` with a reason. In local mode audits still queued at start are
+  closed the same way (one worker, one user); a multi-worker deployment needs a
+  lease per worker before either may be touched.
 - **Progress**: `GET /api/audits/{id}/events` is an SSE stream that polls
   `audit_events` (resumes with `Last-Event-ID`). Works on SQLite and Postgres;
   `LISTEN/NOTIFY` is a later optimisation. Stop sets `cancel_requested`; sites in

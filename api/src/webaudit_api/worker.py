@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from webaudit import Config, Scanner
 from webaudit.ai_review import ClaudeReviewer, Reviewer
@@ -33,6 +33,8 @@ from .settings import Settings
 
 log = logging.getLogger("webaudit.worker")
 FINAL_SITE_STATES = {s.value for s in SiteState}
+RESTART_DELAY_S = 5.0  # a crashed loop is started again: an audit nobody claims only shows as "queued"
+INTERRUPTED = "not checked: the program was closed before this audit finished"
 
 
 def now() -> datetime:
@@ -51,6 +53,7 @@ class AuditWorker:
         transport: httpx.AsyncBaseTransport | None = None,
         config_overrides: dict[str, Any] | None = None,
         ai_reviewer_factory: Callable[[str], Reviewer] | None = None,
+        restart_delay: float = RESTART_DELAY_S,
     ) -> None:
         self.sessionmaker = sessionmaker
         self.settings = settings
@@ -60,23 +63,62 @@ class AuditWorker:
         self.transport = transport  # tests inject a transport that trusts local fixtures
         self.config_overrides = config_overrides or {}
         self.ai_reviewer_factory = ai_reviewer_factory or ClaudeReviewer  # tests inject a fake
+        self.restart_delay = restart_delay
         self._dialect = sessionmaker.kw["bind"].dialect.name if sessionmaker.kw.get("bind") is not None else ""
+        # What the API tells the UI while an audit waits (``GET /api/audits/{id}`` → ``queue``).
+        self.polling = False  # the loop is claiming audits
+        self.audit_id: int | None = None  # the audit being scanned right now
+        self.last_error: str | None = None
+
+    @property
+    def state(self) -> str:
+        """One of "running", "starting", "stopped" - shown to the user instead of a silent queue."""
+        if self.polling:
+            return "running"
+        return "stopped" if self.last_error else "starting"
 
     # ------------------------------------------------------------- loop
 
     async def run(self, stop: asyncio.Event) -> None:
+        """Claim audits until stopped, starting the loop again if it ever fails.
+
+        There is one worker in the desktop app, so a loop that ends leaves every new audit
+        sitting in "queued" with nothing to explain it. Any failure is therefore logged,
+        kept in ``last_error`` for the UI, and the loop starts again.
+        """
+        while not stop.is_set():
+            try:
+                await self._loop(stop)
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - never leave the queue without a worker
+                self.last_error = f"{exc.__class__.__name__}: {exc}"[:300]
+                log.exception("the audit worker failed; starting it again in %.0f s", self.restart_delay)
+            finally:
+                self.polling = False
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stop.wait(), self.restart_delay)
+
+    async def _loop(self, stop: asyncio.Event) -> None:
         await self.recover()
+        self.polling = True
         while not stop.is_set():
             try:
                 audit_id = await self.claim()
-            except Exception:  # noqa: BLE001 - keep the worker alive on transient DB errors
+            except Exception as exc:  # noqa: BLE001 - a transient DB error must not end the loop
+                self.last_error = f"{exc.__class__.__name__}: {exc}"[:300]
                 log.exception("claiming an audit failed")
                 audit_id = None
             if audit_id is None:
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), self.poll_interval)
                 continue
-            await self.process(audit_id)
+            self.audit_id = audit_id
+            try:
+                await self.process(audit_id)
+            finally:
+                self.audit_id = None
 
     async def run_once(self) -> bool:
         """Process one queued audit if there is one (used by tests)."""
@@ -87,15 +129,46 @@ class AuditWorker:
         return True
 
     async def recover(self) -> None:
-        """Audits left 'running' by a crashed worker go back to the queue; finished sites stay done."""
+        """An audit interrupted by a restart is closed, not started again behind the user's back.
+
+        The desktop app is stopped by closing its window, often in the middle of an audit.
+        Putting that audit back in the queue made it run again on the next start, before
+        anything the user begins now - which showed only as "waiting for a free worker" and
+        repeated itself every time the window was closed. Websites already checked keep their
+        results; the rest are marked cancelled, so the user can simply audit them again.
+        (A deployment with several workers needs a lease per worker before this may requeue.)
+        """
         async with self.sessionmaker() as db:
             stuck = list(await db.scalars(select(Audit.id).where(Audit.status == "running")))
-            if stuck:
-                await db.execute(update(Audit).where(Audit.id.in_(stuck)).values(status="queued"))
-                await db.execute(
-                    update(AuditSite).where(AuditSite.audit_id.in_(stuck), AuditSite.state == "running").values(state="pending")
+            # One worker and one user: an audit still queued when the program starts is left
+            # over from an earlier launch, and running it now would hold up whatever the user
+            # starts next. On a server, queued audits belong to the other workers.
+            if self.settings.local_mode:
+                stuck += list(await db.scalars(select(Audit.id).where(Audit.status == "queued")))
+            if not stuck:
+                return
+            await db.execute(
+                update(AuditSite)
+                .where(AuditSite.audit_id.in_(stuck), AuditSite.state.in_(("pending", "running")))
+                .values(state="cancelled", state_reason=INTERRUPTED, step=None, finished_at=now())
+            )
+            for audit_id in stuck:
+                done = await db.scalar(
+                    select(func.count(AuditSite.id)).where(AuditSite.audit_id == audit_id, AuditSite.finished_at.is_not(None))
                 )
-                await db.commit()
+                await db.execute(update(Audit).where(Audit.id == audit_id).values(done_count=done or 0))
+                db.add(
+                    AuditEvent(
+                        audit_id=audit_id,
+                        kind="log",
+                        level="warn",
+                        message="The program was closed before this audit finished; the remaining websites were not checked",
+                    )
+                )
+            await db.commit()
+        for audit_id in stuck:
+            await self._finish(audit_id, "cancelled")
+        log.warning("audit(s) %s were interrupted by a restart and are marked stopped", stuck)
 
     async def claim(self) -> int | None:
         async with self.sessionmaker() as db, db.begin():
@@ -131,6 +204,7 @@ class AuditWorker:
                 overrides = {**(workspace.config_overrides or {}), **self.config_overrides}
                 if audit.cancel_requested:
                     cancel.set()
+            log.info("audit %s started: %d website(s) left of %d", audit_id, len(sites), audit.total)
             await self._event(audit_id, "audit_started", data={"total": audit.total, "remaining": len(sites)})
             site_ids = [s.id for s in sites]
             screenshots = self.settings.data_dir / "audits" / str(audit_id)
@@ -306,6 +380,7 @@ class AuditWorker:
             await db.commit()
 
     async def _finish(self, audit_id: int, status: str) -> None:
+        log.info("audit %s %s", audit_id, status)
         async with self.sessionmaker() as db:
             audit = await db.get(Audit, audit_id)
             audit.status, audit.finished_at = status, now()

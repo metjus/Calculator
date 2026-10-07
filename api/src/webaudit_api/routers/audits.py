@@ -65,8 +65,18 @@ class SiteOut(BaseModel):
     issues: int
 
 
+class QueueOut(BaseModel):
+    """Why a queued audit has not started yet (the UI used to just say "waiting for a free worker")."""
+
+    ahead: int  # audits queued before this one
+    running_audit_id: int | None  # the audit being scanned right now, when it is this workspace's
+    worker: str  # running | starting | stopped | unknown (a worker in another process cannot be asked)
+    worker_error: str | None
+
+
 class AuditDetail(AuditOut):
     sites: list[SiteOut]
+    queue: QueueOut | None = None  # only while this audit waits
 
 
 class CreateResult(BaseModel):
@@ -201,12 +211,29 @@ async def ai_estimate(
     return {"configured": bool(await get_key(db, keybox, user.workspace_id, "claude")), **estimate(sites)}
 
 
+async def _queue(request: Request, db: AsyncSession, user: User, audit: Audit) -> QueueOut | None:
+    """What a waiting audit is waiting for: audits before it, or a worker that is not running."""
+    if audit.status != "queued":
+        return None
+    ahead = await db.scalar(select(func.count(Audit.id)).where(Audit.status == "queued", Audit.id < audit.id))
+    running = await db.scalar(
+        select(Audit.id).where(Audit.status == "running", Audit.workspace_id == user.workspace_id).order_by(Audit.id).limit(1)
+    )
+    worker = getattr(request.app.state, "worker", None)  # None: the worker is a separate process
+    return QueueOut(
+        ahead=ahead or 0,
+        running_audit_id=running,
+        worker=worker.state if worker is not None else "unknown",
+        worker_error=getattr(worker, "last_error", None),
+    )
+
+
 @router.get("/{audit_id}", response_model=AuditDetail)
-async def get_audit(audit_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> AuditDetail:
+async def get_audit(audit_id: int, request: Request, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> AuditDetail:
     audit = await _own_audit(db, user, audit_id)
     sites = await db.scalars(select(AuditSite).where(AuditSite.audit_id == audit.id).order_by(AuditSite.position))
     base = AuditOut.model_validate(audit, from_attributes=True).model_dump()
-    return AuditDetail(**base, sites=[_site_out(s) for s in sites])
+    return AuditDetail(**base, sites=[_site_out(s) for s in sites], queue=await _queue(request, db, user, audit))
 
 
 @router.get("/{audit_id}/sites/{site_id}")

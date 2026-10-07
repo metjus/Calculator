@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import dataclasses
 import io
 import ssl
 import zipfile
@@ -179,3 +181,80 @@ async def test_claude_code_export(user_client: httpx.AsyncClient, app, sites, ma
 @pytest.mark.parametrize("path", ["/api/audits", "/api/settings", "/api/search/options"])
 async def test_endpoints_require_login(client: httpx.AsyncClient, path: str) -> None:
     assert (await client.get(path)).status_code == 401
+
+
+async def test_an_interrupted_audit_is_stopped_and_does_not_block_the_next_one(user_client: httpx.AsyncClient, app, sites) -> None:
+    """Closing the window mid-audit used to re-run that audit ahead of everything new."""
+    urls = "\n".join([sites.urls["legacy"], sites.urls["modern"]])
+    old_id = (await user_client.post("/api/audits", json={"urls": urls})).json()["audit"]["id"]
+    worker = make_worker(app, sites)
+    assert await worker.claim() == old_id  # claimed, then the program is closed
+    async with app.state.sessionmaker() as db:
+        site = await db.scalar(select(AuditSite).where(AuditSite.audit_id == old_id, AuditSite.position == 1))
+        site.state, site.step = "running", "loading homepage"
+        await db.commit()
+
+    new_id = (await user_client.post("/api/audits", json={"urls": sites.urls["cloudflare"]})).json()["audit"]["id"]
+    await worker.recover()  # next start of the program
+
+    old = (await user_client.get(f"/api/audits/{old_id}")).json()
+    assert old["status"] == "cancelled" and old["done_count"] == 2
+    assert {s["state"] for s in old["sites"]} == {"cancelled"}
+    assert "program was closed" in old["sites"][0]["state_reason"]
+    events = (await user_client.get(f"/api/audits/{old_id}/events")).text
+    assert "closed before this audit finished" in events and "Audit stopped" in events
+
+    assert await worker.claim() == new_id  # the new audit is next, not the interrupted one
+
+
+async def test_a_queued_audit_says_what_it_waits_for(user_client: httpx.AsyncClient, app, sites) -> None:
+    first = (await user_client.post("/api/audits", json={"urls": sites.urls["legacy"]})).json()["audit"]["id"]
+    second = (await user_client.post("/api/audits", json={"urls": sites.urls["modern"]})).json()["audit"]["id"]
+    worker = make_worker(app, sites)
+    assert await worker.claim() == first
+
+    queue = (await user_client.get(f"/api/audits/{second}")).json()["queue"]
+    assert queue == {"ahead": 0, "running_audit_id": first, "worker": "unknown", "worker_error": None}
+
+    app.state.worker = worker
+    worker.last_error = "OperationalError: database is locked"
+    assert (await user_client.get(f"/api/audits/{second}")).json()["queue"]["worker"] == "stopped"
+    worker.polling = True
+    assert (await user_client.get(f"/api/audits/{second}")).json()["queue"]["worker"] == "running"
+    del app.state.worker
+
+    await worker.process(first)
+    assert (await user_client.get(f"/api/audits/{first}")).json()["queue"] is None  # not queued any more
+
+
+async def test_the_worker_loop_starts_again_after_a_failure(app, sites) -> None:
+    worker = make_worker(app, sites)
+    worker.restart_delay = 0.01
+    stop = asyncio.Event()
+    calls = 0
+
+    async def flaky(_stop: asyncio.Event) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("boom")
+        stop.set()
+
+    worker._loop = flaky  # noqa: SLF001 - the supervisor is what is under test
+    await asyncio.wait_for(worker.run(stop), 5)
+    assert calls == 2 and worker.state == "stopped" and worker.last_error == "RuntimeError: boom"
+
+
+async def test_desktop_mode_closes_audits_left_in_the_queue(user_client: httpx.AsyncClient, app, sites) -> None:
+    """One worker, one user: a leftover queued audit would hold up the next one invisibly."""
+    stale = (await user_client.post("/api/audits", json={"urls": sites.urls["legacy"]})).json()["audit"]["id"]
+    worker = make_worker(app, sites)
+    worker.settings = dataclasses.replace(worker.settings, local_mode=True)
+    await worker.recover()  # the program starts again
+
+    detail = (await user_client.get(f"/api/audits/{stale}")).json()
+    assert detail["status"] == "cancelled" and detail["sites"][0]["state"] == "cancelled"
+    assert await worker.claim() is None
+
+    fresh = (await user_client.post("/api/audits", json={"urls": sites.urls["modern"]})).json()["audit"]["id"]
+    assert await worker.claim() == fresh  # audits started from now on run normally

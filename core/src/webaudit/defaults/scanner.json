@@ -12,7 +12,7 @@
     "site_total_s": 150,
     "request_s": 15,
     "navigation_s": 30,
-    "pagespeed_s": 70, "ai_review_s": 150
+    "pagespeed_s": 70, "ai_review_s": 150, "browser_start_s": 60
   },
   "limits": {
     "max_html_bytes": 5000000,

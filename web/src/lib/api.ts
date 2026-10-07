@@ -87,7 +87,9 @@ export type Site = {
   top_issue: string | null;
   issues: number;
 };
-export type AuditDetail = Audit & { sites: Site[] };
+/** Why a queued audit has not started: audits before it, or a worker that is not running. */
+export type QueueInfo = { ahead: number; running_audit_id: number | null; worker: string; worker_error: string | null };
+export type AuditDetail = Audit & { sites: Site[]; queue: QueueInfo | null };
 export type Category = "critical" | "weak" | "ok" | "good";
 
 export type CreateResult = {

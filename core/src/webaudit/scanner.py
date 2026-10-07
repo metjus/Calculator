@@ -10,6 +10,7 @@ A failure on one site never stops the batch.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import gzip
 import inspect
 import time
@@ -94,10 +95,16 @@ class Scanner:
         if self.use_browser:
             browser = Browser(self.config, self.guard)
             try:
-                await browser.start()
+                # Bounded: a browser that never finishes starting would hang the whole audit
+                # (and in the desktop app every audit queued behind it).
+                await asyncio.wait_for(browser.start(), self.config.scanner["timeouts"]["browser_start_s"])
                 self.browser = browser
             except BrowserUnavailable as exc:
                 self.browser_error = str(exc)
+            except TimeoutError:
+                self.browser_error = "the browser did not start in time"
+                with contextlib.suppress(Exception):
+                    await browser.close()  # a half-started browser would stay behind
         return self
 
     async def __aexit__(self, *exc: object) -> None:

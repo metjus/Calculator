@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from conftest import needs_browser
 
@@ -158,3 +160,19 @@ async def test_browser_cannot_reach_internal_hosts(sites) -> None:
     assert result.state is SiteState.OK, result.state_reason
     assert "/redir-frame" in sites.hits["attacker"]  # the browser really rendered the page
     assert sites.hits["internal"] == []
+
+
+async def test_a_browser_that_does_not_start_in_time_is_skipped(monkeypatch, sites, trusted_transport) -> None:
+    """A hanging browser start would hang the audit (and, in the desktop app, the whole queue)."""
+
+    async def never(self) -> None:  # noqa: ANN001
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr("webaudit.browser.Browser.start", never)
+    timeouts = {**FAST["scanner"]["timeouts"], "browser_start_s": 0.2}
+    config = Config.load(overrides={"scanner": {**FAST["scanner"], "timeouts": timeouts}})
+    async with Scanner(config, allow_private=True, transport=trusted_transport) as scanner:
+        assert scanner.browser is None and "did not start in time" in scanner.browser_error
+        result = await scanner.scan(sites.urls["legacy"])
+    assert result.state is SiteState.OK and result.score is not None  # scored from the static checks
+    assert any("browser checks skipped" in entry.message for entry in result.log)

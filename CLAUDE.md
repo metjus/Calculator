@@ -87,6 +87,8 @@ Invariants that span files:
 - Competitor websites (`competitor_scans`) are compared with, not audited: no customer, no lead, no AI
   review, excluded from every statistic.
 - The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.
+  One audit runs at a time: its loop restarts itself after any failure, an audit interrupted by a restart is closed (never re-queued, which
+  used to block every later audit), and `GET /api/audits/{id}` carries a `queue` field so the UI says what a waiting audit waits for.
 - Google Places results: store only `place_id`. OSM names may be stored; show the ODbL attribution wherever OSM data appears.
 - External services in tests: `app.state.search_transport` (httpx `MockTransport`); never call real Google/OSM from tests.
 - **Local mode** (`WEBAUDIT_LOCAL_MODE`, desktop only): `/api/auth/local?token=` signs in the single local user with the launcher's per-launch token; the CSRF middleware also rejects any Host other than `127.0.0.1`/`localhost`; `POST /api/local/quit` calls the launcher's `on_quit`. Never enable it on a server.
