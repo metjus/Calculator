@@ -56,7 +56,7 @@ export type KeyState = {
 };
 
 export type Profile = { name: string; company_id: string; phone: string; email: string };
-export type SettingsData = { keys: Record<KeyState["service"], KeyState>; profile: Profile; pdf_language: "sk" | "cs" | "en" };
+export type SettingsData = { keys: Record<KeyState["service"], KeyState>; profile: Profile; pdf_language: "sk" | "cs" | "en"; logo: boolean };
 
 export type AuditStatus = "queued" | "running" | "done" | "cancelled" | "failed";
 export type Audit = {
@@ -106,6 +106,45 @@ export type ScanResult = {
   screenshots: Record<string, string>;
   tech: { cms: string | null; cms_version: string | null; libraries: { name: string; version: string | null }[] };
   score: { total: number; category: Category; areas: { area: string; score: number }[] } | null;
+};
+
+/** POST that returns the response itself: the HTML preview and the PDF download are not JSON. */
+export async function apiRaw(path: string, body: Json): Promise<Response> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "X-Requested-With": "webaudit", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new ApiError(response.status, messageFrom(data?.detail, `Request failed (${response.status})`), data?.detail);
+  }
+  return response;
+}
+
+/** Stage 5: the client PDF — what the preview screen edits before the export. */
+export type PdfIssue = { id: string; status: "warn" | "fail"; label: string; problem: string; impact: string; solution: string };
+export type OfferOption = { title: string; price: string; description: string; recommended: boolean };
+export type PdfPreview = {
+  language: string;
+  languages: string[];
+  client_name: string | null;
+  summary: string;
+  issues: PdfIssue[];
+  offer: OfferOption[];
+  competitors: { domain: string; score: number | null }[];
+  screenshots: string[];
+  profile: { name: string; company_id: string; phone: string; email: string };
+  has_logo: boolean;
+  file_name: string;
+};
+export type PdfChoices = {
+  language: string;
+  client_name: string | null;
+  summary: string;
+  include: string[];
+  offer: OfferOption[];
 };
 
 export type Company = {

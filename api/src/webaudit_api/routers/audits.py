@@ -20,7 +20,7 @@ from starlette.background import BackgroundTask
 from webaudit import Config, ScanResult, SiteState, claude_export
 from webaudit.ai_review import AIReviewError
 from webaudit.dom import bare_host
-from webaudit.pdf import OfferOption, safe_pdf_name
+from webaudit.pdf import OfferOption, build_html, safe_pdf_name
 from webaudit.report import check_label
 
 from ..ai_service import apply_review, estimate, review_view, reviewer_for
@@ -393,6 +393,46 @@ async def pdf_preview(
     return preview(content, _CONFIG, workspace)
 
 
+def _apply(content: Any, body: PdfIn, config: Config, workspace: Workspace) -> None:
+    """The operator's choices from the preview, over the defaults."""
+    if body.client_name is not None:
+        content.client_name = body.client_name.strip() or content.client_name
+    if body.summary is not None:
+        content.summary = body.summary.strip()
+    if body.include is not None:
+        content.include = body.include
+    content.offer = (
+        [OfferOption(**option.model_dump()) for option in body.offer] if body.offer else offer_defaults(content, config, workspace)
+    )
+
+
+@router.post("/{audit_id}/sites/{site_id}/pdf-html", include_in_schema=False)
+async def pdf_html(
+    audit_id: int,
+    site_id: int,
+    body: PdfIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """The report as HTML - the same document the PDF is rendered from.
+
+    The preview screen shows this in an iframe, so editing a price updates it in milliseconds
+    instead of launching Chromium. The page carries only ``data:`` URIs and no script, and the
+    policy below keeps it that way even if that ever changed.
+    """
+    content, _site, workspace = await _pdf_content(db, user, settings, audit_id, site_id, body.language)
+    _apply(content, body, _CONFIG, workspace)
+    return Response(
+        build_html(content, _CONFIG),
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.post("/{audit_id}/sites/{site_id}/pdf")
 async def pdf_export(
     audit_id: int,
@@ -404,15 +444,7 @@ async def pdf_export(
 ) -> Response:
     """The finished PDF. The three options are also kept as the defaults for the next export."""
     content, _site, workspace = await _pdf_content(db, user, settings, audit_id, site_id, body.language)
-    if body.client_name is not None:
-        content.client_name = body.client_name.strip() or content.client_name
-    if body.summary is not None:
-        content.summary = body.summary.strip()
-    if body.include is not None:
-        content.include = body.include
-    content.offer = (
-        [OfferOption(**option.model_dump()) for option in body.offer] if body.offer else offer_defaults(content, _CONFIG, workspace)
-    )
+    _apply(content, body, _CONFIG, workspace)
     pdf = await make_pdf(content, _CONFIG)
     workspace.pdf_offer = [vars(option) for option in content.offer]
     workspace.pdf_language = content.language

@@ -84,6 +84,21 @@ async def test_export_renders_a_pdf_and_remembers_the_prices(user_client: httpx.
     assert [o["price"] for o in again["offer"]] == ["180 €", "540 €", "od 900 €"]  # prefilled next time
 
 
+async def test_the_html_preview_is_the_same_document_the_pdf_is_made_from(user_client: httpx.AsyncClient, app, sites) -> None:
+    """The preview screen shows this in an iframe, so a price edit redraws in milliseconds."""
+    audit_id, site_id = await scored_site(user_client, app, sites)
+    preview = (await user_client.get(f"/api/audits/{audit_id}/sites/{site_id}/pdf-preview")).json()
+    body = {"language": "sk", "summary": "Vlastné zhrnutie.", "include": [preview["issues"][0]["id"]], "offer": preview["offer"]}
+    response = await user_client.post(f"/api/audits/{audit_id}/sites/{site_id}/pdf-html", json=body)
+
+    assert response.status_code == 200 and response.headers["content-type"].startswith("text/html")
+    assert "default-src 'none'" in response.headers["content-security-policy"]
+    html = response.text
+    assert "Vlastné zhrnutie." in html and preview["issues"][0]["label"] in html
+    assert len(preview["issues"]) == 1 or preview["issues"][1]["label"] not in html  # only what was ticked
+    assert "<script" not in html and 'src="http' not in html
+
+
 async def test_a_website_without_a_score_has_no_report(user_client: httpx.AsyncClient, app, sites) -> None:
     created = (await user_client.post("/api/audits", json={"urls": sites.urls["cloudflare"]})).json()
     audit_id = created["audit"]["id"]

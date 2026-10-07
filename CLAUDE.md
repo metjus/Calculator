@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A website-audit SaaS for web designers (brief in Slovak: `docs/SPEC.sk.md`; SaaS translation and stage plan: `docs/ARCHITECTURE.md`). The brief is built **in stages, showing the user each result before continuing**; check the stage table in `docs/ARCHITECTURE.md` before starting new work. The brief also requires showing UI design proposals before writing any UI code.
 
-Stages 1–4 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
+Stages 1–5 are built: `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
 
 ## Commands (run from `core/`)
 
@@ -77,7 +77,8 @@ Invariants that span files:
 - **The client PDF carries nothing external.** `pdf.build_html` inlines fonts, screenshots, the logo and the QR code as `data:` URIs and
   `pdf.render` aborts every network request, so an export reaches no host and works offline; `test_nothing_in_the_report_comes_from_the_network`
   must keep passing. Its wording lives in `defaults/texts.json` under `pdf` (SK/CS/EN). Prices are typed by hand in the preview and never
-  itemised in the PDF - there is no per-problem price list by design.
+  itemised in the PDF - there is no per-problem price list by design. The preview screen draws the same HTML in a sandboxed iframe
+  (`POST …/pdf-html`), so it redraws in milliseconds; only the export launches Chromium.
 - **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails. Any page text that is kept (the `inventory`, page snapshots, title values) goes through `redact.redact_text` / `redact_html` first. The e2e and export tests assert this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.

@@ -114,7 +114,7 @@ delay, a time budget per site, capped page/link counts, an honest
 | 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | `api/` + `web/` in direction B “Petrol” – see *Stage 2 as built* below | **done** |
 | 3 | Audit dashboard | metrics, charts, worst-first table, website detail, manual-check decisions – see *Stage 3 as built* | **done** |
 | 4 | Screenshots + AI design review, competitor comparison | Claude review from the screenshots, cost estimate, competitor scans – see *Stage 4 as built* | **done** – waiting for your feedback |
-| 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright; texts in `texts.json` – see *Stage 5 as built* | **core + API done**, preview screen next |
+| 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright; texts in `texts.json` – see *Stage 5 as built* | **done** |
 | 6 | Prices + “Check my prices” | the per-problem price list was dropped at the owner's request: the three offer prices are typed by hand in the preview, so only the market-price check is left | |
 | 7 | CRM: customers, statuses, history, reminders, sales charts, no-website leads | | |
 | 8 | Archive, duplicates, re-contact, retention | scheduled jobs | |
@@ -280,6 +280,12 @@ the score ring and the three offer boxes).
   three options carry prices typed by hand in the preview, nothing is itemised in the PDF, and
   the last three the operator used are kept on the workspace as the defaults for next time.
 - **API**: `GET /api/audits/{id}/sites/{sid}/pdf-preview` returns what the report would say,
-  `POST …/pdf` returns the finished file. The logo is uploaded in Settings
+  `POST …/pdf-html` returns the report as HTML and `POST …/pdf` the finished file.
+- **The preview screen** (`web/src/pages/PdfReport.tsx`, reached from the website detail) edits the
+  language, the business name, the opening paragraph, which problems go in and in what order, and
+  the three options with their prices. The preview is the **HTML** the PDF is made from, shown in a
+  sandboxed iframe scaled to the column, so it redraws ~400 ms after a keystroke instead of
+  launching Chromium; only the export renders a real PDF. The HTML is served with
+  `default-src 'none'` and carries no script. The logo is uploaded in Settings
   (`PUT/DELETE/GET /api/settings/logo`, max 1 MB, PNG/JPEG/SVG/WebP) and kept in
   `<data>/branding`. One render at a time (`pdf_service._render_lock`).

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "webaudit-api"
-version = "0.5.2"
+version = "0.6.0"
 description = "SaaS backend for the website audit tool: auth, workspaces, batch audits with live progress, business search."
 requires-python = ">=3.11"
 # `webaudit` is the scanning core in ../core; install it first (pip install -e ../core).

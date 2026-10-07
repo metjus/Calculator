@@ -83,9 +83,11 @@ function Detail({ data, reload, onUpdate }: { data: SiteView; reload: () => Prom
                 Fix with Claude Code
               </Button>
             )}
-            <Button variant="primary" icon={FileDown} disabled title="PDF reports for clients arrive in a later update">
-              Create PDF
-            </Button>
+            {scored && (
+              <Link to={`/audits/${audit.id}/sites/${site.id}/pdf`} className="btn btn-primary">
+                <FileDown size={16} aria-hidden /> Create PDF
+              </Link>
+            )}
           </>
         }
       />

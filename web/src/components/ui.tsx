@@ -22,7 +22,7 @@ export function Button({ variant = "secondary", size = "md", icon: Icon, loading
   );
 }
 
-export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow?: string; title: string; sub?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow?: ReactNode; title: string; sub?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="page-head">
       <div>

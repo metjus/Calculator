@@ -1,5 +1,5 @@
-import { Eye, EyeOff, FlaskConical, Save, Trash2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { Eye, EyeOff, FlaskConical, Save, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Banner, Button, Card, Field, PageHeader, Select, Spinner, Tag, TextInput } from "../components/ui";
 import { api, type KeyState, type Profile, type SettingsData } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -184,6 +184,75 @@ function ProfileForm({ initial, language, onSaved }: { initial: Profile; languag
   );
 }
 
+/** The logo printed in the PDF header. Kept in the data folder, not in the database. */
+function LogoRow({ saved, onSaved }: { saved: boolean; onSaved: (s: SettingsData) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [version, setVersion] = useState(0);
+  const input = useRef<HTMLInputElement>(null);
+
+  async function upload(file: File) {
+    const body = new FormData();
+    body.append("file", file);
+    setBusy(true);
+    try {
+      onSaved(await api<SettingsData>("/api/settings/logo", { method: "PUT", body }));
+      setVersion((v) => v + 1);
+      toast("Logo saved");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "The logo could not be saved", "error");
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      onSaved(await api<SettingsData>("/api/settings/logo", { method: "DELETE" }));
+      toast("Logo removed");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "The logo could not be removed", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="stack" style={{ gap: 12 }}>
+      <div className="logo-box">
+        {saved ? (
+          <img src={`/api/settings/logo?v=${version}`} alt="Your logo" />
+        ) : (
+          <span className="muted">No logo yet — the header shows your name instead.</span>
+        )}
+        <div className="row" style={{ gap: 8 }}>
+          <Button icon={Upload} loading={busy} onClick={() => input.current?.click()}>
+            {saved ? "Replace" : "Upload"}
+          </Button>
+          {saved && (
+            <Button icon={Trash2} loading={busy} onClick={remove}>
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+      <span className="field-hint">PNG, JPEG, SVG or WebP, up to 1 MB. It is printed at about 14 mm tall, so a wide logo works best.</span>
+    </div>
+  );
+}
+
 export function Settings() {
   const settings = useApi<SettingsData>("/api/settings");
   const { data, setData } = settings;
@@ -208,9 +277,14 @@ export function Settings() {
               ))}
             </div>
           </Card>
-          <Card title="Your details for PDF reports" id="profile">
-            <ProfileForm initial={data.profile} language={data.pdf_language} onSaved={setData} />
-          </Card>
+          <div className="stack" style={{ gap: 18 }}>
+            <Card title="Your details for PDF reports" id="profile">
+              <ProfileForm initial={data.profile} language={data.pdf_language} onSaved={setData} />
+            </Card>
+            <Card title="Logo" id="logo" meta="printed in the header of the client PDF">
+              <LogoRow saved={data.logo} onSaved={setData} />
+            </Card>
+          </div>
         </div>
       )}
     </>
