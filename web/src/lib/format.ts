@@ -51,3 +51,6 @@ export function hostOf(url: string | null): string {
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** Dollar amounts for API cost estimates: cents below a dollar, whole cents above. */
+export const usd = (value: number) => (value > 0 && value < 0.01 ? "< $0.01" : `$${value.toFixed(2)}`);

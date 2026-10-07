@@ -42,6 +42,10 @@ serves `web/dist` itself (override with `WEBAUDIT_WEB_DIST`). The repository's
 | `WEBAUDIT_HOST`, `WEBAUDIT_PORT` | `127.0.0.1`, `8000` | |
 | `WEBAUDIT_CHROMIUM_PATH` | Playwright's browser | Chromium for screenshots and browser checks |
 
+The Claude key pays for the AI design review (`GET /api/audits/ai-estimate?sites=` prices it;
+`api/src/webaudit_api/ai_pricing.json` holds the rates). Nothing is sent to Claude unless an audit
+asked for the review or `POST /api/audits/{id}/sites/{sid}/ai-review` is called.
+
 API keys for PageSpeed, Claude, Google Places and Mapy.com (map tiles instead of OSM) are entered per workspace in
 **Settings**, stored encrypted and never returned in full.
 

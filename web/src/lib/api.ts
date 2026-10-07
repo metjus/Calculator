@@ -246,5 +246,43 @@ export type SiteView = {
   facts: { label: string; value: string; tone: "bad" | "warn" | "ok" }[];
   contents: { label: string; value: string }[];
   history: { site_id: number; audit_id: number; state: SiteState; score: number | null; category: Category | null; finished_at: string }[];
+  ai_review: AiReview | null;
+  ai: AiEstimate;
+  comparison: { self: Omit<CompareRow, "domain" | "url" | "state" | "score" | "category">; source: "competitors" | "audit"; rows: CompareRow[] };
   result: (ScanResult & { inventory?: { cookie_banner?: { detected: boolean; dismissed: boolean } } }) | null;
+};
+
+export type AiEstimate = {
+  configured: boolean;
+  model: string;
+  sites: number;
+  per_site_usd: { low: number; high: number };
+  total_usd: { low: number; high: number };
+};
+export type AiReview = {
+  status: "pass" | "warn" | "fail" | "na";
+  summary: string;
+  score?: number;
+  verdict?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  looks_dated?: boolean;
+  language?: string;
+  model?: string;
+  cost_usd?: number;
+};
+export type CompareRow = {
+  id?: number | null;
+  site_id?: number;
+  domain: string;
+  url: string;
+  state: SiteState | "pending";
+  reason?: string | null;
+  score: number | null;
+  category: Category | null;
+  screenshots?: string[];
+  mobile: boolean | null;
+  https: boolean | null;
+  pagespeed: number | null;
+  areas: Record<string, number>;
 };

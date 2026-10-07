@@ -66,6 +66,9 @@ class CheckResult(BaseModel):
     value: Any = None
     summary: str = ""  # one English line for the operator (UI language is English)
     evidence: list[str] = Field(default_factory=list)
+    # Share of the check's weight it earns, when a graded score says more than pass/warn/fail
+    # (the AI design review's 0–100). None = use the status credit from scoring.json.
+    credit: float | None = None
 
 
 class LogEntry(BaseModel):

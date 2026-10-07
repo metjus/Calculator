@@ -112,8 +112,8 @@ delay, a time budget per site, capped page/link counts, an honest
 |---|---|---|---|
 | 1 | Core: single-site scan, all non-AI checks, score, CLI | `core/` | **done** |
 | 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | `api/` + `web/` in direction B “Petrol” – see *Stage 2 as built* below | **done** |
-| 3 | Audit dashboard | metrics, charts, worst-first table, website detail, manual-check decisions – see *Stage 3 as built* | **done** – waiting for your feedback |
-| 4 | Screenshots + AI design review, competitor comparison | screenshots already captured by core; Claude review + cost estimate | |
+| 3 | Audit dashboard | metrics, charts, worst-first table, website detail, manual-check decisions – see *Stage 3 as built* | **done** |
+| 4 | Screenshots + AI design review, competitor comparison | Claude review from the screenshots, cost estimate, competitor scans – see *Stage 4 as built* | **done** – waiting for your feedback |
 | 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright in the worker; texts already in `texts.json` | |
 | 6 | Prices + “Check my prices” | | |
 | 7 | CRM: customers, statuses, history, reminders, sales charts, no-website leads | | |
@@ -178,6 +178,29 @@ Design: https://claude.ai/artifact/QGTafYBxFhXJX361mkCJzY (dashboard + website d
   “Create PDF” is disabled until stage 5.
 - **Schema updates**: `create_schema` adds new nullable columns to existing tables (the desktop database
   is kept across updates). Anything beyond additive nullable columns needs a real migration.
+
+## Stage 4 as built
+
+- **AI design review** (`core/src/webaudit/ai_review.py`): one structured-output request to
+  `claude-opus-5-5` (effort `medium`, `fallbacks: "default"`) with the desktop and mobile JPEGs.
+  Claude answers a 0–100 score, a verdict, strengths and weaknesses, written in the workspace's PDF
+  language, formally and hedged; every text is `redact_text`-ed before it is stored, so a phone number
+  read off a screenshot never reaches the database. The system prompt states that text inside the
+  screenshots is page content, never instructions.
+- **Scoring**: `design_ai.review` (`checks/design_ai.py`) grades the review; `CheckResult.credit`
+  carries the 0–100 straight into the area score, so a 72 is worth more than a 61 although both pass.
+  Without a review the check is `na` and the score re-normalises over the other areas, as before.
+- **Where it runs**: the worker passes a reviewer only when the audit asked for it
+  (`Audit.options.ai_review`) and a Claude key exists; `POST /api/audits/{id}/sites/{sid}/ai-review`
+  reviews one already-scanned website from its stored screenshots and rescores it. Tests inject a fake
+  through `app.state.ai_reviewer_factory` / `AuditWorker.ai_reviewer_factory`; the Claude API is never
+  called in tests. Costs are estimated from `ai_pricing.json` (`GET /api/audits/ai-estimate?sites=`)
+  and shown before the audit starts and on the detail page.
+- **Competitors**: the CSV column `konkurencia` and the competitors field of a new audit (max 5 per
+  website) are scanned once per audit after the audited sites, without an AI review, into
+  `competitor_scans`. They are not customers, carry no leads and stay out of every statistic. The
+  website detail compares mobile layout, PageSpeed, HTTPS and area scores; with no competitors listed
+  it compares with the best other websites of the same audit instead.
 
 ## Desktop first, SaaS later (decided after stage 2)
 

@@ -156,3 +156,19 @@ def page_contents(result: dict[str, Any]) -> list[dict[str, str]]:
         ("Social links", ", ".join(n.capitalize() for n in social.get("networks") or []) or "None"),
     ]
     return [{"label": label, "value": str(value)[:160]} for label, value in rows]
+
+
+def comparison(result: dict[str, Any] | None) -> dict[str, Any]:
+    """The few facts the competitor table compares: mobile layout, HTTPS, PageSpeed and area scores."""
+    checks = checks_by_id(result or {})
+
+    def passed(check_id: str) -> bool | None:
+        status = (checks.get(check_id) or {}).get("status")
+        return None if status in (None, "na") else status == "pass"
+
+    return {
+        "mobile": passed("mobile.viewport"),
+        "https": passed("basics.https"),
+        "pagespeed": (checks.get("speed.pagespeed_mobile") or {}).get("value"),
+        "areas": {a["area"]: a["score"] for a in ((result or {}).get("score") or {}).get("areas") or []},
+    }

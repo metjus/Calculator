@@ -45,7 +45,7 @@ def grade(value: float, *, warn_at: float, fail_at: float) -> Status:
 
 def run_all(ctx: ScanContext) -> tuple[list[CheckResult], list[str]]:
     """Run every registered check; a crashing check becomes ``na`` plus an error message."""
-    from . import accessibility, basics, design, mobile, seo, speed, tech, trust  # noqa: F401  (registration)
+    from . import accessibility, basics, design, design_ai, mobile, seo, speed, tech, trust  # noqa: F401  (registration)
 
     results: list[CheckResult] = []
     errors: list[str] = []

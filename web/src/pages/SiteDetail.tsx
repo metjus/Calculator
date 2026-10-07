@@ -1,10 +1,10 @@
-import { ChevronDown, ChevronRight, ChevronUp, ExternalLink, Eye, FileDown, RotateCw, SquareTerminal, Users } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Eye, FileDown, RotateCw, SquareTerminal, TriangleAlert, Users } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { claudePrompt, copyText, exportUrl, Screenshots } from "../components/SiteParts";
 import { Banner, Button, Card, PageHeader, ScoreBadge, Spinner, Tag } from "../components/ui";
-import { api, type ManualDecision, type Problem, type SiteView } from "../lib/api";
-import { CATEGORY_LABEL, CATEGORY_VAR, formatDate, hostOf, plural, SITE_STATE_LABEL } from "../lib/format";
+import { api, type Category, type CompareRow, type ManualDecision, type Problem, type SiteView } from "../lib/api";
+import { CATEGORY_LABEL, CATEGORY_VAR, formatDate, hostOf, plural, SITE_STATE_LABEL, usd } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
 import { auditAgain, DECISION_LABEL } from "./Dashboard";
@@ -20,10 +20,10 @@ export function SiteDetail() {
   const view = useApi<SiteView>(`/api/audits/${auditId}/sites/${siteId}`);
   if (view.error) return <Banner kind="error">{view.error.message}</Banner>;
   if (!view.data) return <Spinner />;
-  return <Detail data={view.data} reload={view.reload} />;
+  return <Detail data={view.data} reload={view.reload} onUpdate={view.setData} />;
 }
 
-function Detail({ data, reload }: { data: SiteView; reload: () => Promise<void> }) {
+function Detail({ data, reload, onUpdate }: { data: SiteView; reload: () => Promise<void>; onUpdate: (view: SiteView) => void }) {
   const toast = useToast();
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
@@ -89,7 +89,7 @@ function Detail({ data, reload }: { data: SiteView; reload: () => Promise<void> 
           </>
         }
       />
-      {!scored ? <NotScored data={data} reload={reload} /> : <Scored data={data} />}
+      {!scored ? <NotScored data={data} reload={reload} /> : <Scored data={data} onUpdate={onUpdate} />}
     </>
   );
 }
@@ -134,7 +134,7 @@ function NotScored({ data, reload }: { data: SiteView; reload: () => Promise<voi
   );
 }
 
-function Scored({ data }: { data: SiteView }) {
+function Scored({ data, onUpdate }: { data: SiteView; onUpdate: (view: SiteView) => void }) {
   const { site } = data;
   const score = site.score ?? 0;
   const category = site.category!;
@@ -211,27 +211,8 @@ function Scored({ data }: { data: SiteView }) {
       <div className="cols">
         <div className="col-main">
           <ProblemList problems={data.problems} />
-          <div className="grid-2">
-            <Card title="Competitors">
-              <div className="stack">
-                <span className="soft-icon">
-                  <Users size={20} aria-hidden />
-                </span>
-                <p className="muted">No comparison yet. Competitors listed with an audit (the “konkurencia” CSV column) will be compared here in a later update.</p>
-              </div>
-            </Card>
-            <Card title="Design review (AI)">
-              <div className="stack">
-                <span className="soft-icon">
-                  <Eye size={20} aria-hidden />
-                </span>
-                <p className="muted">
-                  Not evaluated. The design review by Claude arrives in a later update; it will need a Claude API key in <Link to="/settings">Settings</Link>.
-                  The score is calculated without it.
-                </p>
-              </div>
-            </Card>
-          </div>
+          <AiReviewCard data={data} onUpdate={onUpdate} />
+          <ComparisonCard data={data} />
         </div>
         <div className="col-side">
           <Card title="At a glance">
@@ -363,6 +344,210 @@ function History({ data }: { data: SiteView }) {
             </p>
           )}
         </>
+      )}
+    </Card>
+  );
+}
+
+/** Category of a 0–100 value, with the same limits as the website score. */
+function categoryOf(value: number): Category {
+  return value >= 80 ? "good" : value >= 60 ? "ok" : value >= 40 ? "weak" : "critical";
+}
+
+const LANGUAGE_NAME: Record<string, string> = { sk: "Slovak", cs: "Czech", en: "English" };
+
+function AiReviewCard({ data, onUpdate }: { data: SiteView; onUpdate: (view: SiteView) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const review = data.ai_review;
+  const done = review && typeof review.score === "number";
+  const failed = review && !done && review.summary.startsWith("AI design review failed");
+  const price = `${usd(data.ai.per_site_usd.low)}–${usd(data.ai.per_site_usd.high)}`;
+
+  async function run() {
+    setBusy(true);
+    try {
+      onUpdate(await api<SiteView>(`/api/audits/${data.audit.id}/sites/${data.site.id}/ai-review`, { method: "POST" }));
+      toast("Design reviewed – the score now includes it");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "The review failed", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const action = data.ai.configured ? (
+    <div className="row">
+      <Button icon={Eye} variant={done ? "ghost" : "secondary"} size={done ? "sm" : "md"} loading={busy} onClick={run}>
+        {done ? "Review again" : "Review design with Claude"}
+      </Button>
+      <span className="muted">{busy ? "Claude is looking at the screenshots – this can take up to a minute." : `about ${price}, paid from your Claude account`}</span>
+    </div>
+  ) : (
+    <p className="muted">
+      Add a Claude API key in <Link to="/settings">Settings</Link> to let Claude review the design from the screenshots.
+    </p>
+  );
+
+  if (!done) {
+    return (
+      <Card title="Design review (AI)">
+        <div className="stack">
+          {failed ? (
+            <Banner kind="warn">{review!.summary}</Banner>
+          ) : (
+            <p className="muted">Not evaluated yet. The score is calculated without the design review until Claude has looked at the screenshots.</p>
+          )}
+          {action}
+        </div>
+      </Card>
+    );
+  }
+  const category = categoryOf(review.score!);
+  return (
+    <Card
+      title="Design review (AI)"
+      meta={[review.model && `by ${review.model}`, review.cost_usd !== undefined && usd(review.cost_usd)].filter(Boolean).join(" · ")}
+    >
+      <div className="stack">
+        <div className="ai-head">
+          <span className="score" style={{ ["--cat" as string]: CATEGORY_VAR[category] }}>
+            <b>{review.score}</b>
+            {CATEGORY_LABEL[category]}
+          </span>
+          <p className="ai-verdict">{review.verdict}</p>
+        </div>
+        <div className="ai-lists">
+          {review.strengths && review.strengths.length > 0 && (
+            <div>
+              <div className="mini-label">Works well</div>
+              <ul className="ai-list">
+                {review.strengths.map((item) => (
+                  <li key={item}>
+                    <Check size={16} className="ai-good" aria-hidden />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {review.weaknesses && review.weaknesses.length > 0 && (
+            <div>
+              <div className="mini-label">To improve</div>
+              <ul className="ai-list">
+                {review.weaknesses.map((item) => (
+                  <li key={item}>
+                    <TriangleAlert size={16} className="ai-bad" aria-hidden />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+        <p className="note" style={{ marginTop: 0 }}>
+          Written in {LANGUAGE_NAME[review.language ?? "sk"] ?? review.language} for the client report. The design counts {data.areas.find((a) => a.area === "design_ai")?.weight ?? 10} % of the score.
+        </p>
+        {action}
+      </div>
+    </Card>
+  );
+}
+
+function YesNo({ value }: { value: boolean | null }) {
+  if (value === null) return <span className="muted">—</span>;
+  return <Tag color={value ? "var(--neutral)" : "var(--crit)"}>{value ? "Yes" : "No"}</Tag>;
+}
+
+function ComparisonCard({ data }: { data: SiteView }) {
+  const { comparison, site, areas } = data;
+  const fromAudit = comparison.source === "audit";
+  const self: CompareRow = { ...comparison.self, domain: hostOf(site.final_url ?? site.input_url), url: site.final_url ?? site.input_url, state: site.state, score: site.score, category: site.category };
+  const rows = comparison.rows;
+  const scored = rows.filter((r) => r.score !== null);
+  // Areas where the best compared website is clearly ahead.
+  const ahead = areas
+    .filter((a) => a.score !== null)
+    .map((a) => ({ label: a.label, gap: Math.max(0, ...scored.map((r) => (r.areas[a.area] ?? 0) - (a.score ?? 0))) }))
+    .filter((a) => a.gap >= 10)
+    .sort((a, b) => b.gap - a.gap)
+    .slice(0, 3);
+  const withShots = rows.filter((r) => r.id && r.screenshots && r.screenshots.length);
+
+  return (
+    <Card title={fromAudit ? "Compared with this audit" : "Competitors"} meta={fromAudit ? "the best other websites in the same audit" : "scanned with this audit"}>
+      {!rows.length ? (
+        <div className="stack">
+          <span className="soft-icon">
+            <Users size={20} aria-hidden />
+          </span>
+          <p className="muted">
+            No competitors to compare with. List competitor addresses when you start an audit (or in the CSV column “konkurencia”); they are scanned once,
+            without the AI review.
+          </p>
+        </div>
+      ) : (
+        <div className="stack">
+          <div className="table-box">
+            <table className="table" style={{ minWidth: 520 }}>
+              <thead>
+                <tr>
+                  <th>Website</th>
+                  <th>Score</th>
+                  <th>Mobile layout</th>
+                  <th>PageSpeed</th>
+                  <th>HTTPS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[self, ...rows].map((r, i) => (
+                  <tr key={`${r.domain}-${i}`} className={i === 0 ? "row-self" : undefined}>
+                    <td>
+                      <span className="cell-main">{r.domain}</span>
+                      {i === 0 && <span className="cell-sub">this website</span>}
+                      {i > 0 && r.site_id && (
+                        <Link className="cell-sub" to={`/audits/${data.audit.id}/sites/${r.site_id}`}>
+                          open detail
+                        </Link>
+                      )}
+                    </td>
+                    <td>
+                      {r.score !== null ? (
+                        <ScoreBadge score={r.score} category={r.category} />
+                      ) : (
+                        <span className="muted">{r.state === "pending" ? "not scanned" : SITE_STATE_LABEL[r.state as keyof typeof SITE_STATE_LABEL] ?? r.reason}</span>
+                      )}
+                    </td>
+                    <td>
+                      <YesNo value={r.mobile} />
+                    </td>
+                    <td className="num">{r.pagespeed ?? <span className="muted">—</span>}</td>
+                    <td>
+                      <YesNo value={r.https} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {scored.length > 0 && (
+            <p className="note" style={{ marginTop: 0 }}>
+              {ahead.length
+                ? `Where the others do better: ${ahead.map((a) => `${a.label} (+${a.gap})`).join(", ")}.`
+                : "This website is level with or ahead of the others in every area."}
+            </p>
+          )}
+          {withShots.length > 0 && (
+            <div className="competitor-shots">
+              {withShots.map((r) => (
+                <div key={r.id} className="competitor-shot">
+                  <span className="mini-label">{r.domain}</span>
+                  <Screenshots base={`/api/audits/${data.audit.id}/competitors/${r.id}/screenshots`} names={r.screenshots!} host={r.domain} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </Card>
   );

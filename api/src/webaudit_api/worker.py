@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 import signal
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,12 +21,13 @@ import httpx
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from webaudit import Config, Scanner
+from webaudit.ai_review import ClaudeReviewer, Reviewer
 from webaudit.models import ScanResult, SiteState
 from webaudit.scanner import ProgressEvent
 
 from .db import create_schema, make_engine, make_sessionmaker
 from .keys import get_key
-from .models import Audit, AuditEvent, AuditSite, Workspace
+from .models import Audit, AuditEvent, AuditSite, CompetitorScan, Workspace
 from .security import KeyBox
 from .settings import Settings
 
@@ -48,6 +50,7 @@ class AuditWorker:
         use_browser: bool = True,
         transport: httpx.AsyncBaseTransport | None = None,
         config_overrides: dict[str, Any] | None = None,
+        ai_reviewer_factory: Callable[[str], Reviewer] | None = None,
     ) -> None:
         self.sessionmaker = sessionmaker
         self.settings = settings
@@ -56,6 +59,7 @@ class AuditWorker:
         self.use_browser = use_browser
         self.transport = transport  # tests inject a transport that trusts local fixtures
         self.config_overrides = config_overrides or {}
+        self.ai_reviewer_factory = ai_reviewer_factory or ClaudeReviewer  # tests inject a fake
         self._dialect = sessionmaker.kw["bind"].dialect.name if sessionmaker.kw.get("bind") is not None else ""
 
     # ------------------------------------------------------------- loop
@@ -121,6 +125,9 @@ class AuditWorker:
                     )
                 )
                 pagespeed_key = await get_key(db, self.keybox, audit.workspace_id, "pagespeed")
+                wants_ai = bool((audit.options or {}).get("ai_review"))
+                claude_key = await get_key(db, self.keybox, audit.workspace_id, "claude") if wants_ai else None
+                language = workspace.pdf_language
                 overrides = {**(workspace.config_overrides or {}), **self.config_overrides}
                 if audit.cancel_requested:
                     cancel.set()
@@ -151,7 +158,11 @@ class AuditWorker:
                 screenshots_dir=screenshots,
                 transport=self.transport,
                 on_event=on_event,
+                ai_reviewer=self.ai_reviewer_factory(claude_key) if claude_key else None,
+                ai_language=language,
             ) as scanner:
+                if wants_ai and not claude_key:
+                    await self._event(audit_id, "log", level="warn", message="AI design review skipped: add a Claude API key in Settings")
                 if scanner.browser_error:
                     await self._event(audit_id, "log", level="warn", message=f"Browser checks disabled: {scanner.browser_error}")
                 if not pagespeed_key:
@@ -159,6 +170,8 @@ class AuditWorker:
                         audit_id, "log", level="info", message="PageSpeed skipped: add a Google PageSpeed API key in Settings"
                     )
                 results = await scanner.scan_many([s.input_url for s in sites], concurrency=self.settings.scan_concurrency, cancel=cancel)
+                if not cancel.is_set():
+                    await self._scan_competitors(audit_id, scanner, sites, results, cancel)
             # Sites skipped by "Stop" never emit a done event; record them from the returned results.
             for index, result in enumerate(results, start=1):
                 if result.state is SiteState.CANCELLED:
@@ -170,6 +183,61 @@ class AuditWorker:
             await self._finish(audit_id, "failed")
         finally:
             watcher.cancel()
+
+    async def _scan_competitors(
+        self, audit_id: int, scanner: Scanner, sites: list[AuditSite], results: list[ScanResult], cancel: asyncio.Event
+    ) -> None:
+        """Scan each listed competitor once (no AI review) for the comparison on the website detail."""
+        async with self.sessionmaker() as db:
+            audited = set(await db.scalars(select(AuditSite.input_url).where(AuditSite.audit_id == audit_id)))
+            done = set(await db.scalars(select(CompetitorScan.url).where(CompetitorScan.audit_id == audit_id)))
+        wanted: list[str] = []
+        for site, result in zip(sites, results, strict=True):
+            if result.state is SiteState.OK:
+                wanted += [url for url in site.competitors or [] if url not in audited and url not in done and url not in wanted]
+        if not wanted:
+            return
+        noun = "website" if len(wanted) == 1 else "websites"
+        await self._event(audit_id, "log", level="info", message=f"Comparing with {len(wanted)} competitor {noun}…")
+
+        async def on_event(event: ProgressEvent) -> None:
+            if event.result is not None:
+                await self._competitor_done(audit_id, wanted[event.index - 1], event.result)
+
+        scanner.on_event = on_event
+        await scanner.scan_many(wanted, concurrency=self.settings.scan_concurrency, cancel=cancel, ai_review=False)
+
+    async def _competitor_done(self, audit_id: int, url: str, result: ScanResult) -> None:
+        if result.state is SiteState.CANCELLED:
+            return
+        payload = result.model_dump(mode="json")
+        payload["screenshots"] = {name: self._relative(path) for name, path in result.screenshots.items()}
+        payload["snapshots"] = {}
+        ok = result.state is SiteState.OK and result.score is not None
+        async with self.sessionmaker() as db:
+            db.add(
+                CompetitorScan(
+                    audit_id=audit_id,
+                    url=url,
+                    final_url=result.final_url,
+                    state=result.state.value,
+                    state_reason=result.state_reason,
+                    score=result.score.total if result.score else None,
+                    category=result.score.category.value if result.score else None,
+                    result=payload,
+                    finished_at=now(),
+                )
+            )
+            db.add(
+                AuditEvent(
+                    audit_id=audit_id,
+                    kind="log",
+                    level="ok" if ok else "warn",
+                    message=f"competitor: score {result.score.total}/100" if ok else f"competitor: {result.state_reason}",
+                    data={"url": result.final_url or url},
+                )
+            )
+            await db.commit()
 
     async def _watch_cancel(self, audit_id: int, cancel: asyncio.Event) -> None:
         while not cancel.is_set():

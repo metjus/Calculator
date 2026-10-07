@@ -2,8 +2,8 @@ import { FileUp, Play } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Banner, Button, Card, Checkbox, Field, PageHeader, Segmented, TextArea, TextInput } from "../components/ui";
-import { api, ApiError, type CreateResult, type SettingsData } from "../lib/api";
-import { plural } from "../lib/format";
+import { api, ApiError, type AiEstimate, type CreateResult, type SettingsData } from "../lib/api";
+import { plural, usd } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
 
@@ -20,9 +20,14 @@ export function NewAudit() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<CreateResult["invalid"]>([]);
+  const [aiReview, setAiReview] = useState(false);
+  const [competitors, setCompetitors] = useState("");
+  const [csvRows, setCsvRows] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const urlCount = urls.split(/[\s,;]+/).filter(Boolean).length;
+  const siteCount = source === "paste" ? urlCount : csvRows;
+  const estimate = useApi<AiEstimate>(`/api/audits/ai-estimate?sites=${siteCount}`);
   const claudeReady = Boolean(settings.data?.keys.claude.configured);
   const pagespeedReady = Boolean(settings.data?.keys.pagespeed.configured);
 
@@ -34,12 +39,14 @@ export function NewAudit() {
     try {
       let result: CreateResult;
       if (source === "paste") {
-        result = await api<CreateResult>("/api/audits", { body: { project: project || null, urls } });
+        result = await api<CreateResult>("/api/audits", { body: { project: project || null, urls, ai_review: aiReview, competitors } });
       } else {
         if (!file) throw new Error("Choose a CSV file");
         const form = new FormData();
         form.append("file", file);
         if (project) form.append("project", project);
+        form.append("ai_review", String(aiReview));
+        form.append("competitors", competitors);
         result = await api<CreateResult>("/api/audits/csv", { body: form });
       }
       const notes = [
@@ -106,7 +113,13 @@ export function NewAudit() {
                       accept=".csv,text/csv"
                       className="sr-only"
                       aria-describedby={describedBy}
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                      onChange={async (e) => {
+                        const chosen = e.target.files?.[0] ?? null;
+                        setFile(chosen);
+                        // Rough count for the AI estimate: non-empty lines minus the header.
+                        const lines = chosen ? (await chosen.text()).split(/\r?\n/).filter((l) => l.trim()).length : 0;
+                        setCsvRows(Math.max(0, lines - 1));
+                      }}
                     />
                     <Button icon={FileUp} onClick={() => fileInput.current?.click()}>
                       Choose file
@@ -130,12 +143,41 @@ export function NewAudit() {
             <Field label="Project" hint="Groups the results, e.g. “Hair salons Trnava”. A project column in the CSV overrides it per row.">
               {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={project} onChange={(e) => setProject(e.target.value)} maxLength={200} />}
             </Field>
+            <Field
+              label="Competitors (optional)"
+              hint="Compared with every website in this audit, up to 5. Each is scanned once, without the AI review. Per-website competitors: the CSV column “konkurencia”."
+            >
+              {(id, describedBy) => (
+                <TextArea
+                  id={id}
+                  aria-describedby={describedBy}
+                  rows={2}
+                  placeholder={"salon-viva.sk\nstrih-studio.sk"}
+                  value={competitors}
+                  onChange={(e) => setCompetitors(e.target.value)}
+                />
+              )}
+            </Field>
             <Checkbox
               label="Evaluate design with Claude (AI)"
-              disabled
-              checked={false}
-              readOnly
-              hint={claudeReady ? "The AI design review arrives with screenshots in the next stage." : "Needs a Claude API key in Settings. The AI design review arrives in the next stage."}
+              disabled={!claudeReady}
+              checked={claudeReady && aiReview}
+              onChange={(e) => setAiReview(e.target.checked)}
+              hint={
+                claudeReady ? (
+                  <>
+                    Claude looks at the desktop and mobile screenshots of each website; the score then includes the design.{" "}
+                    {estimate.data &&
+                      (siteCount > 0
+                        ? `Estimated cost: ${usd(estimate.data.total_usd.low)}–${usd(estimate.data.total_usd.high)} for ${plural(siteCount, "website")}, paid from your Claude account.`
+                        : `About ${usd(estimate.data.per_site_usd.low)}–${usd(estimate.data.per_site_usd.high)} per website, paid from your Claude account.`)}
+                  </>
+                ) : (
+                  <>
+                    Needs a Claude API key in <Link to="/settings">Settings</Link>.
+                  </>
+                )
+              }
             />
             {!pagespeedReady && settings.data && (
               <Banner>

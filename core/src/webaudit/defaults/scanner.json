@@ -12,7 +12,7 @@
     "site_total_s": 150,
     "request_s": 15,
     "navigation_s": 30,
-    "pagespeed_s": 70
+    "pagespeed_s": 70, "ai_review_s": 150
   },
   "limits": {
     "max_html_bytes": 5000000,
@@ -44,6 +44,8 @@
     "tap_target_fail_ratio_warn": 0.05,
     "tap_target_fail_ratio_fail": 0.15,
     "horizontal_scroll_tolerance_px": 8,
+    "ai_design_pass": 70,
+    "ai_design_fail_below": 45,
     "pagespeed_pass": 90,
     "pagespeed_fail_below": 50,
     "large_image_bytes": 300000,

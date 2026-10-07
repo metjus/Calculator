@@ -144,6 +144,27 @@ class AuditSite(Base):
     company: Mapped[Company | None] = relationship(lazy="joined")
 
 
+class CompetitorScan(Base):
+    """A competitor website scanned for comparison, once per audit however many sites list it.
+
+    Competitors come from the CSV column ``konkurencia`` or the competitors field of a new audit;
+    they get the normal checks and screenshots but no AI review, and stay out of all statistics.
+    """
+
+    __tablename__ = "competitor_scans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(2048))  # as listed with the audited site (normalized)
+    final_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    state: Mapped[str] = mapped_column(String(16))
+    state_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class AuditEvent(Base):
     """Progress feed of an audit; streamed to the browser over SSE (id = SSE event id)."""
 

@@ -24,6 +24,7 @@ import httpx
 
 from . import checks as check_registry
 from . import inventory, pagespeed, protection, scoring, techdetect
+from .ai_review import AIReviewError, Reviewer
 from .browser import Browser, BrowserUnavailable, safe_filename
 from .checks.trust import find_contact_link, social_profiles
 from .config import Config
@@ -71,9 +72,14 @@ class Scanner:
         transport: httpx.AsyncBaseTransport | None = None,
         on_event: EventHandler | None = None,
         guard: NetGuard | None = None,
+        ai_reviewer: Reviewer | None = None,
+        ai_language: str = "sk",
     ) -> None:
         self.config = config or Config.load()
         self.pagespeed_key = pagespeed_key
+        # Claude's design review from the screenshots (needs screenshots_dir); None = not requested.
+        self.ai_reviewer = ai_reviewer
+        self.ai_language = ai_language
         self.use_browser = use_browser and self.config.scanner["browser"]["enabled"]
         # Files (screenshots, redacted page snapshots) are only written when a folder is given.
         self.screenshots_dir = Path(screenshots_dir) if screenshots_dir else None
@@ -114,7 +120,9 @@ class Scanner:
         *,
         concurrency: int = 2,
         cancel: asyncio.Event | None = None,
+        ai_review: bool = True,
     ) -> list[ScanResult]:
+        """``ai_review=False`` skips the design review for this batch (e.g. competitor websites)."""
         items = list(urls)
         semaphore = asyncio.Semaphore(max(1, concurrency))
 
@@ -124,13 +132,13 @@ class Scanner:
                     res = ScanResult(input_url=url, state=SiteState.CANCELLED, state_reason="audit stopped")
                     res.finished_at = utcnow()
                     return res
-                return await self.scan(url, index=index, total=len(items))
+                return await self.scan(url, index=index, total=len(items), ai_review=ai_review)
 
         return list(await asyncio.gather(*(run(i, u) for i, u in enumerate(items, start=1))))
 
     # ------------------------------------------------------------------- site
 
-    async def scan(self, url: str, *, index: int = 1, total: int = 1) -> ScanResult:
+    async def scan(self, url: str, *, index: int = 1, total: int = 1, ai_review: bool = True) -> ScanResult:
         res = ScanResult(input_url=url)
         label = url
 
@@ -150,9 +158,10 @@ class Scanner:
             await log("error", res.state_reason)
             return await self._finish(res, index, total, label)
 
-        budget = self.config.scanner["timeouts"]["site_total_s"]
+        use_ai = ai_review and self.ai_reviewer is not None
+        budget = self.config.scanner["timeouts"]["site_total_s"] + (self.config.scanner["timeouts"]["ai_review_s"] if use_ai else 0)
         try:
-            await asyncio.wait_for(self._scan(res, log, step), timeout=budget + 15)
+            await asyncio.wait_for(self._scan(res, log, step, use_ai), timeout=budget + 15)
         except TimeoutError:
             if res.score is None:
                 res.state, res.state_reason = SiteState.UNREACHABLE, "time limit for this website exceeded"
@@ -167,7 +176,9 @@ class Scanner:
         await self._emit(ProgressEvent(index, total, label, step="done", result=res))
         return res
 
-    async def _scan(self, res: ScanResult, log: Callable[..., Awaitable[None]], step: Callable[..., Awaitable[None]]) -> None:
+    async def _scan(
+        self, res: ScanResult, log: Callable[..., Awaitable[None]], step: Callable[..., Awaitable[None]], use_ai: bool = False
+    ) -> None:
         deadline = time.monotonic() + self.config.scanner["timeouts"]["site_total_s"]
         url = res.url
         assert url is not None
@@ -239,6 +250,8 @@ class Scanner:
             return
         if ctx.browser_ok and ctx.desktop.html:
             ctx.dom = parse(ctx.desktop.html)
+        if use_ai:
+            await self._ai_review(ctx, log, step)
 
         await step("evaluating")
         res.tech = techdetect.detect(ctx)
@@ -361,6 +374,31 @@ class Scanner:
                 await log("ok", f"{name} view measured")
             else:
                 await log("warn", f"{name} view failed: {render.error}")
+
+    async def _ai_review(self, ctx: ScanContext, log: Callable[..., Awaitable[None]], step: Callable[..., Awaitable[None]]) -> None:
+        def shot(render: RenderData | None) -> bytes | None:
+            path = Path(render.screenshot) if render and render.ok and render.screenshot else None
+            return path.read_bytes() if path and path.is_file() else None
+
+        desktop, mobile = shot(ctx.desktop), shot(ctx.mobile)
+        if desktop is None:
+            ctx.ai_review_note = "AI design review skipped: no desktop screenshot"
+            await log("warn", ctx.ai_review_note)
+            return
+        await step("asking Claude to review the design")
+        assert self.ai_reviewer is not None
+        try:
+            ctx.ai_review = await asyncio.wait_for(
+                self.ai_reviewer(desktop, mobile, ctx.final_url, self.ai_language), timeout=self.config.scanner["timeouts"]["ai_review_s"]
+            )
+        except AIReviewError as exc:
+            ctx.ai_review_note = f"AI design review failed: {exc}"
+        except TimeoutError:
+            ctx.ai_review_note = "AI design review failed: Claude did not answer in time"
+        if ctx.ai_review is not None:
+            await log("ok", f"design reviewed by Claude: {ctx.ai_review['score']}/100")
+        else:
+            await log("warn", ctx.ai_review_note or "AI design review failed")
 
     async def _image_sizes_without_browser(self, ctx: ScanContext) -> None:
         limit = self.config.scanner["limits"]["max_images_checked_without_browser"]

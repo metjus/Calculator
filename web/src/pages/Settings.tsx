@@ -21,7 +21,7 @@ const SERVICES: { service: Service; label: string; guide: string; guideLabel: st
     label: "Claude API key",
     guide: "https://console.anthropic.com/settings/keys",
     guideLabel: "Create a key in the Anthropic Console",
-    use: "AI review of the design from screenshots (next stage). Without it, the option stays off.",
+    use: "Claude reviews the design from the desktop and mobile screenshots: tick “Evaluate design with Claude” on a new audit, or review one website from its detail page. Billed to your Claude account (about $0.03–0.09 per website). Without it, the score is calculated without the design review.",
   },
   {
     service: "google_places",

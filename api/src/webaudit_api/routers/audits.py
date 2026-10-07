@@ -11,24 +11,30 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask
 from webaudit import Config, ScanResult, SiteState, claude_export
+from webaudit.ai_review import AIReviewError
+from webaudit.dom import bare_host
 from webaudit.report import check_label
 
+from ..ai_service import apply_review, estimate, review_view, reviewer_for
 from ..audit_service import AuditRequest, CreatedAudit, create_audit, parse_csv_bytes, parse_url_text
-from ..deps import current_user, get_db, get_settings
-from ..models import Audit, AuditEvent, AuditSite, User, Workspace
+from ..deps import current_user, get_db, get_keybox, get_settings
+from ..keys import get_key
+from ..models import Audit, AuditEvent, AuditSite, CompetitorScan, User, Workspace
+from ..security import KeyBox
 from ..settings import Settings
-from ..site_view import areas, facts, page_contents, problems
+from ..site_view import areas, comparison, facts, page_contents, problems
 
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 _CONFIG = Config.load()  # labels for problem ids (English operator UI)
 MAX_CSV_BYTES = 2_000_000
+MAX_COMPETITORS = 5  # per website; each one is a full scan
 
 
 class AuditOut(BaseModel):
@@ -73,6 +79,8 @@ class CreateResult(BaseModel):
 class CreateFromText(BaseModel):
     project: str | None = Field(default=None, max_length=200)
     urls: str = Field(max_length=200_000)
+    ai_review: bool = False  # Claude's design review for every website (needs a Claude key)
+    competitors: str = Field(default="", max_length=20_000)  # compared with every website in the audit
 
 
 def _site_out(site: AuditSite) -> SiteOut:
@@ -111,21 +119,46 @@ def created_response(result: CreatedAudit) -> CreateResult:
     )
 
 
+async def _options(db: AsyncSession, keybox: KeyBox, user: User, ai_review: bool) -> dict[str, Any]:
+    if ai_review and not await get_key(db, keybox, user.workspace_id, "claude"):
+        raise HTTPException(422, {"message": "Add a Claude API key in Settings to evaluate design with Claude", "invalid": []})
+    return {"ai_review": ai_review}
+
+
+def _add_competitors(request: AuditRequest, text: str) -> None:
+    """Competitors typed for the whole audit join the ones each row already has (CSV column)."""
+    common, invalid = parse_url_text(text)
+    request.invalid += [{**item, "error": f"competitor: {item['error']}"} for item in invalid]
+    for row in request.rows:
+        own = bare_host(row.url) if row.url else None
+        merged = [*row.competitors, *(c.url for c in common if c.url)]
+        row.competitors = [url for url in dict.fromkeys(merged) if bare_host(url) != own][:MAX_COMPETITORS]
+
+
 @router.post("", response_model=CreateResult, status_code=201)
 async def create_from_text(
-    body: CreateFromText, user: User = Depends(current_user), db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
+    body: CreateFromText,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
+    settings: Settings = Depends(get_settings),
 ) -> CreateResult:
     rows, invalid = parse_url_text(body.urls)
     request = AuditRequest(project=(body.project or "").strip() or None, rows=rows, invalid=invalid)
-    return created_response(await create_audit(db, user.workspace_id, request, max_urls=settings.max_urls_per_audit))
+    _add_competitors(request, body.competitors)
+    options = await _options(db, keybox, user, body.ai_review)
+    return created_response(await create_audit(db, user.workspace_id, request, max_urls=settings.max_urls_per_audit, options=options))
 
 
 @router.post("/csv", response_model=CreateResult, status_code=201)
 async def create_from_csv(
     file: UploadFile = File(...),
     project: str | None = Form(default=None),
+    ai_review: bool = Form(default=False),
+    competitors: str = Form(default="", max_length=20_000),
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
     settings: Settings = Depends(get_settings),
 ) -> CreateResult:
     data = await file.read(MAX_CSV_BYTES + 1)
@@ -136,7 +169,9 @@ async def create_from_csv(
     except ValueError as exc:
         raise HTTPException(422, {"message": str(exc), "invalid": []}) from exc
     request = AuditRequest(project=(project or "").strip() or None, rows=rows, invalid=invalid)
-    return created_response(await create_audit(db, user.workspace_id, request, max_urls=settings.max_urls_per_audit))
+    _add_competitors(request, competitors)
+    options = await _options(db, keybox, user, ai_review)
+    return created_response(await create_audit(db, user.workspace_id, request, max_urls=settings.max_urls_per_audit, options=options))
 
 
 @router.get("", response_model=list[AuditOut])
@@ -155,6 +190,17 @@ async def audit_summary(user: User = Depends(current_user), db: AsyncSession = D
     return {"audits": audits or 0, "scored_sites": sites or 0}
 
 
+@router.get("/ai-estimate")
+async def ai_estimate(
+    sites: int = Query(default=1, ge=0, le=10_000),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
+) -> dict[str, Any]:
+    """Whether a Claude key is set and what reviewing ``sites`` websites may cost."""
+    return {"configured": bool(await get_key(db, keybox, user.workspace_id, "claude")), **estimate(sites)}
+
+
 @router.get("/{audit_id}", response_model=AuditDetail)
 async def get_audit(audit_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> AuditDetail:
     audit = await _own_audit(db, user, audit_id)
@@ -165,7 +211,11 @@ async def get_audit(audit_id: int, user: User = Depends(current_user), db: Async
 
 @router.get("/{audit_id}/sites/{site_id}")
 async def get_site_result(
-    audit_id: int, site_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)
+    audit_id: int,
+    site_id: int,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
 ) -> dict[str, Any]:
     await _own_audit(db, user, audit_id)
     site = await db.get(AuditSite, site_id)
@@ -209,8 +259,118 @@ async def get_site_result(
         "facts": facts(result) if result.get("checks") else [],
         "contents": page_contents(result),
         "history": history,
+        "ai_review": review_view(result),
+        "ai": {"configured": bool(await get_key(db, keybox, user.workspace_id, "claude")), **estimate(1)},
+        "comparison": {"self": comparison(result), **await _competitors(db, site)},
         "result": result,
     }
+
+
+async def _competitors(db: AsyncSession, site: AuditSite) -> dict[str, Any]:
+    """The listed competitors' scans, or else the best other websites of the same audit."""
+    if site.competitors:
+        scans = {c.url: c for c in await db.scalars(select(CompetitorScan).where(CompetitorScan.audit_id == site.audit_id))}
+        rows = []
+        for url in site.competitors:
+            scan = scans.get(url)
+            rows.append(
+                {
+                    "id": scan.id if scan else None,
+                    "domain": bare_host(scan.final_url if scan and scan.final_url else url) or url,
+                    "url": (scan.final_url if scan else None) or url,
+                    "state": scan.state if scan else "pending",
+                    "reason": scan.state_reason if scan else "Not scanned yet",
+                    "score": scan.score if scan else None,
+                    "category": scan.category if scan else None,
+                    "screenshots": sorted(((scan.result or {}).get("screenshots") or {}) if scan else {}),
+                    **comparison(scan.result if scan else None),
+                }
+            )
+        return {"source": "competitors", "rows": rows}
+    peers = await db.scalars(
+        select(AuditSite)
+        .where(AuditSite.audit_id == site.audit_id, AuditSite.id != site.id, AuditSite.score.is_not(None))
+        .order_by(AuditSite.score.desc())
+        .limit(3)
+    )
+    return {
+        "source": "audit",
+        "rows": [
+            {
+                "site_id": peer.id,
+                "domain": bare_host(peer.final_url or peer.input_url) or peer.input_url,
+                "url": peer.final_url or peer.input_url,
+                "state": peer.state,
+                "score": peer.score,
+                "category": peer.category,
+                **comparison(peer.result),
+            }
+            for peer in peers
+        ],
+    }
+
+
+@router.post("/{audit_id}/sites/{site_id}/ai-review")
+async def review_site(
+    audit_id: int,
+    site_id: int,
+    request: Request,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    """Claude's design review for one already scanned website, from its stored screenshots; the score is recomputed."""
+    await _own_audit(db, user, audit_id)
+    site = await db.get(AuditSite, site_id)
+    if site is None or site.audit_id != audit_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Website not found")
+    if site.state != "ok" or not site.result:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only scored websites can be reviewed")
+    key = await get_key(db, keybox, user.workspace_id, "claude")
+    if not key:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Add a Claude API key in Settings first")
+    read = _file_reader(settings)
+    shots = site.result.get("screenshots") or {}
+    desktop = read(shots["desktop"]) if shots.get("desktop") else None
+    if desktop is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This website has no screenshots; audit it again first")
+    mobile = read(shots["mobile"]) if shots.get("mobile") else None
+    workspace = await db.get(Workspace, user.workspace_id)
+    try:
+        review = await reviewer_for(request.app.state, key)(desktop, mobile, site.final_url or site.input_url, workspace.pdf_language)
+    except AIReviewError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    updated = apply_review(site.result, review, None, await _workspace_config(db, user))
+    site.result = updated
+    site.score, site.category = updated["score"]["total"], updated["score"]["category"]
+    await db.commit()
+    return await get_site_result(audit_id, site_id, user, db, keybox)
+
+
+@router.get("/{audit_id}/competitors/{competitor_id}/screenshots/{name}")
+async def get_competitor_screenshot(
+    audit_id: int,
+    competitor_id: int,
+    name: str,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    await _own_audit(db, user, audit_id)
+    scan = await db.get(CompetitorScan, competitor_id)
+    relative = ((scan.result or {}).get("screenshots") or {}).get(name) if scan and scan.audit_id == audit_id else None
+    return _screenshot_response(settings, relative)
+
+
+def _screenshot_response(settings: Settings, relative: str | None) -> FileResponse:
+    if not relative:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Screenshot not found")
+    root = settings.data_dir.resolve()
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Screenshot not found")
+    return FileResponse(Path(path), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/{audit_id}/sites/{site_id}/screenshots/{name}")
@@ -225,13 +385,7 @@ async def get_screenshot(
     await _own_audit(db, user, audit_id)
     site = await db.get(AuditSite, site_id)
     relative = ((site.result or {}).get("screenshots") or {}).get(name) if site and site.audit_id == audit_id else None
-    if not relative:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Screenshot not found")
-    root = settings.data_dir.resolve()
-    path = (root / relative).resolve()
-    if not path.is_relative_to(root) or not path.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Screenshot not found")
-    return FileResponse(Path(path), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+    return _screenshot_response(settings, relative)
 
 
 def _file_reader(settings: Settings) -> Callable[[str], bytes | None]:

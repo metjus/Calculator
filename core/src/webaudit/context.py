@@ -49,6 +49,8 @@ class ScanContext:
     mobile: RenderData | None = None
     pagespeed: dict[str, dict[str, Any]] = field(default_factory=dict)  # strategy -> API JSON
     pagespeed_note: str | None = None
+    ai_review: dict[str, Any] | None = None  # Claude's design review (ai_review.py), if one was made
+    ai_review_note: str | None = None  # why there is none: not requested, no screenshots, API error
     memo: dict[str, Any] = field(default_factory=dict)  # derived values shared by several checks
 
     @property

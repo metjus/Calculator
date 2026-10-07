@@ -14,6 +14,7 @@ dependencies = [
   "lxml>=5.0",
   "pydantic>=2.6",
   "rich>=13.0",
+  "anthropic>=1.0",  # the AI design review (ai_review.py); only called when a Claude key is given
 ]
 
 [project.optional-dependencies]

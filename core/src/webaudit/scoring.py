@@ -11,6 +11,10 @@ def _evaluated(checks: list[CheckResult], area: str, weights: dict[str, float]) 
     return [(c, weights[c.id]) for c in checks if c.area.value == area and c.id in weights and c.status is not Status.NA]
 
 
+def _credit(check: CheckResult, credit: dict[str, float]) -> float:
+    return check.credit if check.credit is not None else credit[check.status.value]
+
+
 def category_for(total: float, scoring: dict[str, Any]) -> Category:
     chosen = scoring["categories"][0]["id"]
     for cat in sorted(scoring["categories"], key=lambda c: c["min"]):
@@ -27,7 +31,7 @@ def score(checks: list[CheckResult], scoring: dict[str, Any]) -> Score | None:
         if not items:
             continue
         total_weight = sum(w for _, w in items)
-        value = 100 * sum(w * credit[c.status.value] for c, w in items) / total_weight
+        value = 100 * sum(w * _credit(c, credit) for c, w in items) / total_weight
         areas.append(AreaScore(area=Area(area), score=round(value), weight=cfg["weight"], checks=len(items)))
     if not areas:
         return None
@@ -48,7 +52,7 @@ def rank_issues(checks: list[CheckResult], scoring: dict[str, Any]) -> list[Issu
         check_weight_sum = sum(w for _, w in items)
         for c, w in items:
             if c.status in (Status.FAIL, Status.WARN):
-                lost = (cfg["weight"] / area_weight_sum) * (w / check_weight_sum) * (1 - credit[c.status.value]) * 100
+                lost = (cfg["weight"] / area_weight_sum) * (w / check_weight_sum) * (1 - _credit(c, credit)) * 100
                 issues.append(Issue(check_id=c.id, area=c.area, status=c.status, impact=round(lost, 1)))
     issues.sort(key=lambda i: (-i.impact, i.check_id))
     return issues
