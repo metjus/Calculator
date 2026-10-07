@@ -114,8 +114,8 @@ delay, a time budget per site, capped page/link counts, an honest
 | 2 | Batch scan + UI: visual direction, CSV import, business search, settings & keys, progress, cookie bars, Cloudflare detection | `api/` + `web/` in direction B “Petrol” – see *Stage 2 as built* below | **done** |
 | 3 | Audit dashboard | metrics, charts, worst-first table, website detail, manual-check decisions – see *Stage 3 as built* | **done** |
 | 4 | Screenshots + AI design review, competitor comparison | Claude review from the screenshots, cost estimate, competitor scans – see *Stage 4 as built* | **done** – waiting for your feedback |
-| 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright in the worker; texts already in `texts.json` | |
-| 6 | Prices + “Check my prices” | | |
+| 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright; texts in `texts.json` – see *Stage 5 as built* | **core + API done**, preview screen next |
+| 6 | Prices + “Check my prices” | the per-problem price list was dropped at the owner's request: the three offer prices are typed by hand in the preview, so only the market-price check is left | |
 | 7 | CRM: customers, statuses, history, reminders, sales charts, no-website leads | | |
 | 8 | Archive, duplicates, re-contact, retention | scheduled jobs | |
 | 9 | Polish, real-site testing, deployment | Docker, CI, EU hosting instead of PyInstaller | |
@@ -251,3 +251,28 @@ docs/      brief (SPEC.sk.md), this document
 api/       FastAPI service `webaudit_api` – auth, workspaces, audits, worker, search (stage 2)
 web/       React SPA in direction B “Petrol” (stage 2); FastAPI serves web/dist in production
 ```
+
+## Stage 5 as built
+
+The client PDF, in the direction the owner picked (the visual one, with the petrol header,
+the score ring and the three offer boxes).
+
+- **`core/webaudit/pdf.py`** builds the whole report as one self-contained HTML document and
+  renders it with Chromium. `build_html` is pure, so the layout and every text is tested
+  without a browser. Fonts (IBM Plex Sans, OFL-1.1, in `assets/fonts`), screenshots, the logo
+  and the QR code are inlined as `data:` URIs and the renderer **aborts every network
+  request** – making a PDF reaches nothing, which keeps the SSRF boundary intact and lets the
+  desktop app work offline.
+- **Pages**: cover (logo, business name, score ring, three signal tiles, opening paragraph,
+  score by area), the problems three to a page in the three-part wording, the screenshots and
+  the competitor comparison, and the offer page with the vCard QR. Pages that have no data are
+  left out.
+- **Texts** live in `defaults/texts.json` under `pdf` (SK/CS/EN, plus month names and the
+  default wording of the three offer options), so they change without touching code.
+- **No price list.** The brief's per-problem prices were dropped at the owner's request: the
+  three options carry prices typed by hand in the preview, nothing is itemised in the PDF, and
+  the last three the operator used are kept on the workspace as the defaults for next time.
+- **API**: `GET /api/audits/{id}/sites/{sid}/pdf-preview` returns what the report would say,
+  `POST …/pdf` returns the finished file. The logo is uploaded in Settings
+  (`PUT/DELETE/GET /api/settings/logo`, max 1 MB, PNG/JPEG/SVG/WebP) and kept in
+  `<data>/branding`. One render at a time (`pdf_service._render_lock`).

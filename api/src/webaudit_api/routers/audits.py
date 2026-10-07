@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from starlette.background import BackgroundTask
 from webaudit import Config, ScanResult, SiteState, claude_export
 from webaudit.ai_review import AIReviewError
 from webaudit.dom import bare_host
+from webaudit.pdf import OfferOption, safe_pdf_name
 from webaudit.report import check_label
 
 from ..ai_service import apply_review, estimate, review_view, reviewer_for
@@ -27,6 +28,7 @@ from ..audit_service import AuditRequest, CreatedAudit, create_audit, parse_csv_
 from ..deps import current_user, get_db, get_keybox, get_settings
 from ..keys import get_key
 from ..models import Audit, AuditEvent, AuditSite, CompetitorScan, User, Workspace
+from ..pdf_service import LANGUAGES, content_for, make_pdf, offer_defaults, preview
 from ..security import KeyBox
 from ..settings import Settings
 from ..site_view import areas, comparison, facts, page_contents, problems
@@ -86,6 +88,23 @@ class CreateResult(BaseModel):
     skipped_duplicates: int
 
 
+class OfferIn(BaseModel):
+    title: str = Field(default="", max_length=120)
+    price: str = Field(default="", max_length=40)  # typed by hand; no per-problem price list by design
+    description: str = Field(default="", max_length=400)
+    recommended: bool = False
+
+
+class PdfIn(BaseModel):
+    """Everything the operator decided in the preview."""
+
+    language: str = Field(default="sk", pattern="^(sk|cs|en)$")
+    client_name: str | None = Field(default=None, max_length=200)
+    summary: str | None = Field(default=None, max_length=1500)
+    include: list[str] | None = None  # check ids, in the order they should be printed
+    offer: list[OfferIn] = Field(default_factory=list, max_length=3)
+
+
 class CreateFromText(BaseModel):
     project: str | None = Field(default=None, max_length=200)
     urls: str = Field(max_length=200_000)
@@ -109,6 +128,14 @@ def _site_out(site: AuditSite) -> SiteOut:
         top_issue=check_label(_CONFIG, issues[0]["check_id"]) if issues else None,
         issues=len(issues),
     )
+
+
+async def _own_site(db: AsyncSession, user: User, audit_id: int, site_id: int) -> AuditSite:
+    await _own_audit(db, user, audit_id)
+    site = await db.get(AuditSite, site_id)
+    if site is None or site.audit_id != audit_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Website not found")
+    return site
 
 
 async def _own_audit(db: AsyncSession, user: User, audit_id: int) -> Audit:
@@ -335,6 +362,63 @@ async def _competitors(db: AsyncSession, site: AuditSite) -> dict[str, Any]:
             for peer in peers
         ],
     }
+
+
+async def _pdf_content(
+    db: AsyncSession, user: User, settings: Settings, audit_id: int, site_id: int, language: str
+) -> tuple[Any, AuditSite, Workspace]:
+    site = await _own_site(db, user, audit_id, site_id)
+    if not (site.result or {}).get("score"):
+        raise HTTPException(422, "This website has no score, so there is nothing to put in a report")
+    workspace = await db.get(Workspace, user.workspace_id)
+    rows = (await _competitors(db, site))["rows"]
+    name = site.company.name if site.company else None
+    content = content_for(site, workspace, settings, _CONFIG, language=language, competitors=rows, client_name=name)
+    return content, site, workspace
+
+
+@router.get("/{audit_id}/sites/{site_id}/pdf-preview")
+async def pdf_preview(
+    audit_id: int,
+    site_id: int,
+    lang: str = Query(default=""),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    """What the client PDF would say, before the operator edits it."""
+    workspace = await db.get(Workspace, user.workspace_id)
+    language = lang if lang in LANGUAGES else workspace.pdf_language
+    content, _site, workspace = await _pdf_content(db, user, settings, audit_id, site_id, language)
+    return preview(content, _CONFIG, workspace)
+
+
+@router.post("/{audit_id}/sites/{site_id}/pdf")
+async def pdf_export(
+    audit_id: int,
+    site_id: int,
+    body: PdfIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """The finished PDF. The three options are also kept as the defaults for the next export."""
+    content, _site, workspace = await _pdf_content(db, user, settings, audit_id, site_id, body.language)
+    if body.client_name is not None:
+        content.client_name = body.client_name.strip() or content.client_name
+    if body.summary is not None:
+        content.summary = body.summary.strip()
+    if body.include is not None:
+        content.include = body.include
+    content.offer = (
+        [OfferOption(**option.model_dump()) for option in body.offer] if body.offer else offer_defaults(content, _CONFIG, workspace)
+    )
+    pdf = await make_pdf(content, _CONFIG)
+    workspace.pdf_offer = [vars(option) for option in content.offer]
+    workspace.pdf_language = content.language
+    await db.commit()
+    name = safe_pdf_name(content)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @router.post("/{audit_id}/sites/{site_id}/ai-review")

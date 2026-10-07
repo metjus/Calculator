@@ -29,6 +29,10 @@ class Workspace(Base):
     # "My details for the PDF": name, company id (IČO), phone, e-mail – the user's own, not leads'.
     profile: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     pdf_language: Mapped[str] = mapped_column(String(2), default="sk")
+    # The operator's logo for the PDF header (file name inside <data>/branding) and the three
+    # offer options last used, so the prices they typed come back prefilled next time.
+    logo: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pdf_offer: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     # Per-workspace overrides of the core JSON config (weights, thresholds, texts).
     config_overrides: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

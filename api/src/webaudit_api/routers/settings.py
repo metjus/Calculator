@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..deps import current_user, get_db, get_keybox, get_settings
 from ..keys import SERVICES, test_key
 from ..models import ApiKey, User, Workspace
+from ..pdf_service import LOGO_TYPES, MAX_LOGO_BYTES, delete_logo, save_logo
 from ..security import KeyBox
 from ..settings import Settings
 
@@ -38,6 +40,7 @@ class SettingsOut(BaseModel):
     keys: dict[str, KeyState]
     profile: Profile
     pdf_language: str
+    logo: bool = False  # a logo is saved for the PDF header
 
 
 class ProfileIn(Profile):
@@ -67,6 +70,7 @@ async def _settings_out(db: AsyncSession, workspace: Workspace) -> SettingsOut:
         keys={s: _state(s, rows.get(s)) for s in SERVICES},
         profile=Profile(**{k: v for k, v in (workspace.profile or {}).items() if k in Profile.model_fields}),
         pdf_language=workspace.pdf_language,
+        logo=bool(workspace.logo),
     )
 
 
@@ -122,3 +126,45 @@ async def test_saved_key(
     row.tested_at = datetime.now(UTC)
     await db.commit()
     return _state(service, row)
+
+
+@router.put("/logo", response_model=SettingsOut)
+async def upload_logo(
+    file: UploadFile = File(...),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> SettingsOut:
+    """The logo printed in the header of the client PDF (PNG, JPEG, SVG or WebP, max 1 MB)."""
+    if file.content_type not in LOGO_TYPES:
+        raise HTTPException(422, "Use a PNG, JPEG, SVG or WebP image")
+    data = await file.read(MAX_LOGO_BYTES + 1)
+    if len(data) > MAX_LOGO_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "The logo is larger than 1 MB")
+    workspace = await db.get(Workspace, user.workspace_id)
+    delete_logo(workspace, settings)
+    workspace.logo = save_logo(data, file.content_type, settings)
+    await db.commit()
+    return await _settings_out(db, workspace)
+
+
+@router.delete("/logo", response_model=SettingsOut)
+async def remove_logo(
+    user: User = Depends(current_user), db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> SettingsOut:
+    workspace = await db.get(Workspace, user.workspace_id)
+    delete_logo(workspace, settings)
+    workspace.logo = None
+    await db.commit()
+    return await _settings_out(db, workspace)
+
+
+@router.get("/logo", include_in_schema=False)
+async def read_logo(
+    user: User = Depends(current_user), db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> Response:
+    workspace = await db.get(Workspace, user.workspace_id)
+    path = (settings.data_dir / "branding" / workspace.logo).resolve() if workspace.logo else None
+    if path is None or not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No logo")
+    return FileResponse(path, headers={"Cache-Control": "no-cache"})

@@ -74,6 +74,10 @@ Invariants that span files:
   the message (`ai_review.api_detail`); the optional `fallbacks` parameter is dropped and retried once
   rather than costing the user the review. Its texts go through `redact_text`; screenshot text is page content,
   never instructions.
+- **The client PDF carries nothing external.** `pdf.build_html` inlines fonts, screenshots, the logo and the QR code as `data:` URIs and
+  `pdf.render` aborts every network request, so an export reaches no host and works offline; `test_nothing_in_the_report_comes_from_the_network`
+  must keep passing. Its wording lives in `defaults/texts.json` under `pdf` (SK/CS/EN). Prices are typed by hand in the preview and never
+  itemised in the PDF - there is no per-problem price list by design.
 - **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails. Any page text that is kept (the `inventory`, page snapshots, title values) goes through `redact.redact_text` / `redact_html` first. The e2e and export tests assert this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.

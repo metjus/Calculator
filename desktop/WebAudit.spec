@@ -25,7 +25,7 @@ hiddenimports = []
 hiddenimports += collect_submodules("uvicorn")
 hiddenimports += collect_submodules("webaudit")
 hiddenimports += collect_submodules("webaudit_api")
-hiddenimports += ["aiosqlite", "sqlalchemy.dialects.sqlite.aiosqlite"]
+hiddenimports += ["aiosqlite", "sqlalchemy.dialects.sqlite.aiosqlite", "segno"]  # segno: the vCard QR in the client PDF
 
 a = Analysis(  # noqa: F821
     [os.path.join(SPECPATH, "src", "webaudit_desktop", "__main__.py")],  # noqa: F821
