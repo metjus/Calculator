@@ -10,6 +10,7 @@ import io
 import httpx
 import pytest
 from test_audits import make_worker
+from webaudit.pdf import Profile, qr_svg, vcard
 
 from webaudit_api.models import Workspace
 
@@ -97,6 +98,38 @@ async def test_the_html_preview_is_the_same_document_the_pdf_is_made_from(user_c
     assert "Vlastné zhrnutie." in html and preview["issues"][0]["label"] in html
     assert len(preview["issues"]) == 1 or preview["issues"][1]["label"] not in html  # only what was ticked
     assert "<script" not in html and 'src="http' not in html
+
+
+async def test_the_qr_carries_exactly_what_settings_holds(user_client: httpx.AsyncClient, app, sites) -> None:
+    """The contact code is built from the saved profile - not from a copy that can go stale.
+
+    Verified end to end once by rendering a real PDF and decoding the code off the rasterised
+    page; this keeps the payload tied to Settings without needing a decoder in the test suite.
+    """
+    profile = {
+        "name": "Matúš Šturdík",
+        "company_id": "55 123 456",
+        "phone": "+421 903 123 456",
+        "email": "me@studio.sk",
+        "pdf_language": "sk",
+    }
+    await user_client.put("/api/settings/profile", json=profile)
+    audit_id, site_id = await scored_site(user_client, app, sites)
+    preview = (await user_client.get(f"/api/audits/{audit_id}/sites/{site_id}/pdf-preview")).json()
+    body = {"language": "sk", "include": [preview["issues"][0]["id"]], "offer": preview["offer"]}
+    html = (await user_client.post(f"/api/audits/{audit_id}/sites/{site_id}/pdf-html", json=body)).text
+
+    card = vcard(Profile(name=profile["name"], phone=profile["phone"], email=profile["email"]))
+    assert qr_svg(card) in html  # the very same symbol, drawn from the stored details
+    assert profile["company_id"] not in card  # printed beside the code, never scanned
+    assert (await user_client.get("/api/settings/vcard-qr")).text == qr_svg(card)  # Settings shows that one
+
+    # Change the phone number and the code must follow it, in the PDF and in Settings alike.
+    await user_client.put("/api/settings/profile", json={**profile, "phone": "+421 905 000 111"})
+    moved = vcard(Profile(name=profile["name"], phone="+421 905 000 111", email=profile["email"]))
+    again = (await user_client.post(f"/api/audits/{audit_id}/sites/{site_id}/pdf-html", json=body)).text
+    assert qr_svg(moved) in again and qr_svg(card) not in again
+    assert (await user_client.get("/api/settings/vcard-qr")).text == qr_svg(moved)
 
 
 async def test_a_website_without_a_score_has_no_report(user_client: httpx.AsyncClient, app, sites) -> None:
