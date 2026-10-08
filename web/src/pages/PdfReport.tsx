@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Check, Download, FileDown, Settings2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, FileDown, Maximize2, Minimize2, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Banner, Button, Card, Field, PageHeader, Spinner, TextArea, TextInput } from "../components/ui";
@@ -255,6 +255,7 @@ function Preview({ base, choices, hasLogo }: { base: string; choices: PdfChoices
   const [busy, setBusy] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const [width, setWidth] = useState(PAGE_WIDTH);
+  const [full, setFull] = useState(false);
 
   const draw = useCallback(async () => {
     setBusy(true);
@@ -287,9 +288,11 @@ function Preview({ base, choices, hasLogo }: { base: string; choices: PdfChoices
     return () => observer.disconnect();
   }, []);
 
-  const scale = Math.min(1, width / PAGE_WIDTH);
+  // Full size means the real print width; the paper box then scrolls. The preview is never
+  // opened as a blob: URL - the desktop shell hands those to Windows, which has no app for them.
+  const scale = full ? 1 : Math.min(1, width / PAGE_WIDTH);
   return (
-    <Card title="Preview" meta={busy ? "drawing…" : `${pages} page${pages === 1 ? "" : "s"}`} className="pdf-preview">
+    <Card title="Preview" meta={busy ? "drawing…" : `${pages} page${pages === 1 ? "" : "s"}`} className={`pdf-preview${full ? " full" : ""}`}>
       {problem && <Banner kind="warn">{problem}</Banner>}
       <div className="pdf-paper" ref={box}>
         <div style={{ width: PAGE_WIDTH * scale, height: PAGE_HEIGHT * pages * scale }}>
@@ -322,9 +325,9 @@ function Preview({ base, choices, hasLogo }: { base: string; choices: PdfChoices
           "Upload a logo there to print it in the header."
         )}
       </p>
-      <a className="btn btn-sm pdf-open" href={url ?? "#"} target="_blank" rel="noreferrer noopener">
-        <Download size={15} aria-hidden /> Open the preview in a window
-      </a>
+      <Button size="sm" className="pdf-open" icon={full ? Minimize2 : Maximize2} onClick={() => setFull((value) => !value)}>
+        {full ? "Fit to the column" : "Show at full size"}
+      </Button>
     </Card>
   );
 }

@@ -27,6 +27,9 @@ from .report import area_label, category_label, issue_text
 FONT_WEIGHTS = (300, 400, 500, 600)
 ISSUES_PER_PAGE = 3  # cards are tall; three per page leaves room for the longest texts
 MAX_LOGO_HEIGHT_MM = 14
+QR_QUIET_ZONE = 4  # the standard quiet zone; scanners need it to find the symbol
+QR_ERROR = "m"  # 15% error correction: enough for a printed page, and keeps the symbol small
+QR_SIZE_MM = 36  # with the vCard above this leaves ~0.6 mm per module, which a phone reads easily
 
 
 @dataclass
@@ -97,27 +100,37 @@ def _image_type(data: bytes) -> str:
 
 
 def vcard(profile: Profile) -> str:
-    """A contact card for the QR code. Only the operator's own details go in."""
+    """A contact card for the QR code. Only the operator's own details go in.
+
+    Kept short on purpose: every character is another module in the symbol, and the company id
+    is printed beside the code anyway, so it does not need to be scanned as well.
+    """
     lines = ["BEGIN:VCARD", "VERSION:3.0", f"FN:{profile.name}", f"N:{profile.name};;;;"]
     if profile.phone:
         lines.append(f"TEL;TYPE=CELL:{profile.phone}")
     if profile.email:
         lines.append(f"EMAIL;TYPE=INTERNET:{profile.email}")
-    if profile.company_id:
-        lines.append(f"NOTE:IČO {profile.company_id}")
     lines.append("END:VCARD")
     return "\r\n".join(lines)
 
 
 def qr_svg(payload: str) -> str:
-    """The vCard as an inline SVG. Drawn locally; nothing is sent anywhere."""
+    """The vCard as an inline SVG, sized by CSS. Drawn locally; nothing is sent anywhere.
+
+    Two details decide whether a phone can read it. The symbol needs the standard four-module
+    quiet zone, and the SVG needs a ``viewBox``: without one, a CSS width does not scale the
+    symbol, it crops it - which is exactly what shipped in 0.6.0 and made the code unreadable.
+    """
     import io
 
     import segno
 
+    code = segno.make(payload, error=QR_ERROR)
     buffer = io.BytesIO()
-    segno.make(payload, error="m").save(buffer, kind="svg", scale=4, border=1, dark="#1d1b18", svgclass=None, lineclass=None, xmldecl=False)
-    return buffer.getvalue().decode("utf-8").strip()
+    code.save(buffer, kind="svg", scale=1, border=QR_QUIET_ZONE, dark="#1d1b18", svgclass=None, lineclass=None, xmldecl=False)
+    svg = buffer.getvalue().decode("utf-8").strip()
+    side = code.symbol_size(scale=1, border=QR_QUIET_ZONE)[0]
+    return svg.replace("<svg ", f'<svg viewBox="0 0 {side} {side}" preserveAspectRatio="xMidYMid meet" ', 1)
 
 
 def _esc(text: Any) -> str:
@@ -324,7 +337,7 @@ h3{font-weight:600;font-size:11.5pt}
 .box .d2{font-size:9pt;color:#57524a;flex:1}
 .note{margin-top:6mm;font-size:10pt;color:#57524a}
 .contact{position:absolute;left:18mm;right:18mm;bottom:18mm;border-top:1px solid #e2ddd4;padding-top:5mm;display:flex;gap:6mm;align-items:center}
-.contact svg{width:26mm;height:26mm;display:block}
+.contact svg{width:__QRMM__mm;height:__QRMM__mm;display:block;flex:0 0 auto}
 .who{position:absolute;left:18mm;right:18mm;bottom:14mm;border-top:1px solid #e2ddd4;padding-top:4mm;display:flex;
      justify-content:space-between;font-size:9pt;color:#57524a}
 .foot{position:absolute;left:18mm;right:18mm;bottom:10mm;display:flex;justify-content:space-between;font-size:8pt;color:#716b63;
@@ -479,7 +492,7 @@ def build_html(content: PdfContent, config: Config) -> str:
 </div></div>{foot(len(pages) + 1)}</section>"""
         )
 
-    style = STYLE.replace("__LOGOMM__", str(MAX_LOGO_HEIGHT_MM))
+    style = STYLE.replace("__LOGOMM__", str(MAX_LOGO_HEIGHT_MM)).replace("__QRMM__", str(QR_SIZE_MM))
     return (
         f'<!doctype html><html lang="{_esc(language)}"><head><meta charset="utf-8">'
         f"<title>{_esc(label('doc_title'))} – {_esc(client)}</title>"

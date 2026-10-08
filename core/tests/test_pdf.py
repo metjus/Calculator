@@ -10,6 +10,8 @@ from conftest import needs_browser
 from webaudit import Config, Status
 from webaudit.models import Area, CheckResult, Issue, ScanResult, SiteState
 from webaudit.pdf import (
+    QR_QUIET_ZONE,
+    QR_SIZE_MM,
     STATUS_COLOURS,
     OfferOption,
     PdfContent,
@@ -128,7 +130,26 @@ def test_the_qr_code_carries_only_the_operator_s_own_contact() -> None:
     card = vcard(PROFILE)
     assert "FN:Matúš Š." in card and "TEL;TYPE=CELL:+421 900 123 456" in card and "EMAIL;TYPE=INTERNET:me@studio.sk" in card
     assert card.startswith("BEGIN:VCARD") and card.endswith("END:VCARD")
+    assert "12345678" not in card  # the company id is printed beside the code, not scanned
     assert qr_svg(card).startswith("<svg")
+
+
+def test_the_qr_code_scales_instead_of_cropping() -> None:
+    """0.6.0 shipped a QR nobody could read: no viewBox, so the CSS size cropped it.
+
+    The symbol must keep its four-module quiet zone and carry a viewBox covering the whole
+    code, and a module must stay big enough on paper for a phone to resolve it.
+    """
+    svg = qr_svg(vcard(PROFILE))
+    side = int(re.search(r'viewBox="0 0 (\d+) \1"', svg).group(1))
+    marks = [(float(x), float(y)) for x, y in re.findall(r"M([\d.]+) ([\d.]+)", svg)]
+    assert marks, "the symbol drew nothing"
+    assert min(x for x, _ in marks) >= QR_QUIET_ZONE and min(y for _, y in marks) >= QR_QUIET_ZONE
+    assert max(x for x, _ in marks) <= side - QR_QUIET_ZONE
+    assert QR_SIZE_MM / side >= 0.5  # millimetres per module; phones read well above ~0.4
+
+    html = build_html(content(), Config.load())
+    assert f"width:{QR_SIZE_MM}mm" in html and "__QRMM__" not in html
 
 
 def test_file_name_and_date_helpers() -> None:

@@ -2,7 +2,7 @@
 
 Zoznam toho, čo treba po každej etape prejsť ručne. Odškrtni, čo sedí, a napíš mi, čo nie.
 
-## Etapa 5 — klientske PDF (verzia 0.6.0)
+## Etapa 5 — klientske PDF (verzia 0.7.1)
 
 Stiahni si build z [desktop-latest](https://github.com/metjus/Calculator/releases/tag/desktop-latest),
 rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`.
@@ -22,6 +22,8 @@ rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`
 - [ ] Odškrtni pár problémov → počet aj náhľad sa musia zmeniť (aj počet strán hore vpravo).
 - [ ] Presuň problém **šípkami ↑ ↓** → v náhľade sa má presunúť aj poradie čísel.
 - [ ] Vypíš **tri ceny**, vyber rádiovkou, ktorá možnosť je „Odporúčam".
+- [ ] **Show at full size** → náhľad sa zväčší na skutočnú šírku strany a dá sa v ňom skrolovať;
+      druhý klik ho vráti do stĺpca. Nesmie vyskočiť žiadne okno Windowsu („Get an app…").
 - [ ] **Export PDF** → súbor sa stiahne a pomenuje podľa domény.
 
 ### Samotné PDF
@@ -33,6 +35,8 @@ rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`
 - [ ] Posledná strana: tri možnosti so správnymi cenami, zvýraznená tá odporúčaná, veta
       „Ak chcete riešiť len niektoré veci…" a **nikde žiadny rozpis po položkách**.
 - [ ] **Naskenuj QR kód telefónom** → má ponúknuť uloženie kontaktu s tvojím menom, telefónom a e-mailom.
+      Kód je teraz 36 mm veľký a celý (v 0.6.0 bol orezaný, preto sa nedal prečítať). IČO je vypísané
+      vedľa kódu, v kóde už nie je.
 - [ ] Otvor PDF **bez internetu** — musí sa zobraziť celé vrátane písma a obrázkov.
 
 ### Po exporte

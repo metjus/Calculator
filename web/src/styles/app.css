@@ -1808,6 +1808,10 @@ button.bar.selected {
 .pdf-foot { margin-top: 10px; }
 .pdf-foot svg { vertical-align: -2px; margin-right: 5px; }
 .pdf-open { margin-top: 4px; }
+/* Full size shows the report at its real print width; the paper box scrolls both ways. */
+.pdf-preview.full { position: static; }
+.pdf-preview.full .pdf-paper { max-height: 80vh; }
+.pdf-preview.full .pdf-paper > div { margin: 0; }
 
 .logo-box { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .logo-box img {
