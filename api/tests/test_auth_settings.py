@@ -83,6 +83,24 @@ async def test_profile_round_trip(user_client: httpx.AsyncClient) -> None:
     assert (await user_client.put("/api/settings/profile", json={**body, "pdf_language": "de"})).status_code == 422
 
 
+async def test_the_contact_code_is_scannable_on_screen(user_client: httpx.AsyncClient) -> None:
+    """The PDF preview shrinks the whole page, so Settings is where the owner checks the code.
+
+    It must carry a viewBox: the size here is set in CSS, and without one the browser crops the
+    symbol instead of scaling it - the bug that shipped in 0.6.0.
+    """
+    assert (await user_client.get("/api/settings/vcard-qr")).status_code == 404  # nothing to encode yet
+
+    await user_client.put(
+        "/api/settings/profile",
+        json={"name": "Matúš Š.", "company_id": "12345678", "phone": "+421 900 123 456", "email": "me@studio.sk", "pdf_language": "sk"},
+    )
+    answer = await user_client.get("/api/settings/vcard-qr")
+    assert answer.status_code == 200 and answer.headers["content-type"].startswith("image/svg+xml")
+    assert answer.text.startswith("<svg") and "viewBox=" in answer.text
+    assert "12345678" not in answer.text  # the company id is printed beside the code, not encoded
+
+
 async def test_claude_key_check_maps_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     import anthropic
 

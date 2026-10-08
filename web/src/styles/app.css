@@ -1813,6 +1813,10 @@ button.bar.selected {
 .pdf-preview.full .pdf-paper { max-height: 80vh; }
 .pdf-preview.full .pdf-paper > div { margin: 0; }
 
+.qr-box { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.qr-box img { background: #fffdf9; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; }
+.qr-box > div { flex: 1 1 200px; display: grid; gap: 8px; }
+
 .logo-box { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .logo-box img {
   max-height: 56px;

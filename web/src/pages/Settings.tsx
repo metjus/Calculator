@@ -184,6 +184,31 @@ function ProfileForm({ initial, language, onSaved }: { initial: Profile; languag
   );
 }
 
+/** The contact card the PDF prints, at a size a phone can actually read off the screen.
+ *
+ * In the report it is 36 mm and scans off paper; in the PDF preview the whole page is scaled
+ * down to the column, so the code lands at about 75 px — too small for any camera. This is
+ * where the owner checks their own card works, without exporting a PDF first.
+ */
+function VcardQr({ profile, saved }: { profile: Profile; saved: number }) {
+  const filled = Boolean(profile.name || profile.phone || profile.email);
+  if (!filled) return <p className="field-hint">Fill in your details above and the contact code appears here.</p>;
+  return (
+    <div className="qr-box">
+      <img src={`/api/settings/vcard-qr?v=${saved}`} alt="Your contact card as a QR code" width={220} height={220} />
+      <div>
+        <p className="field-hint">
+          Scan this with your phone — it should offer to save {profile.name || "your"} contact with the phone number and e-mail above.
+        </p>
+        <p className="field-hint">
+          The client PDF prints the same code at 36 mm, big enough to scan off paper. In the PDF preview the whole page is shrunk to fit
+          the column, so the code there is only a thumbnail — don’t try to scan that one.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** How long each step of the funnel waits before the program says something (stage 8). */
 function RulesForm({ initial, onSaved }: { initial: CrmRules; onSaved: (s: SettingsData) => void }) {
   const toast = useToast();
@@ -308,6 +333,8 @@ function LogoRow({ saved, onSaved }: { saved: boolean; onSaved: (s: SettingsData
 export function Settings() {
   const settings = useApi<SettingsData>("/api/settings");
   const { data, setData } = settings;
+  // Saving the details redraws the code, so the image is not served from the browser cache.
+  const [qrVersion, setQrVersion] = useState(0);
 
   return (
     <>
@@ -331,7 +358,17 @@ export function Settings() {
           </Card>
           <div className="stack" style={{ gap: 18 }}>
             <Card title="Your details for PDF reports" id="profile">
-              <ProfileForm initial={data.profile} language={data.pdf_language} onSaved={setData} />
+              <ProfileForm
+                initial={data.profile}
+                language={data.pdf_language}
+                onSaved={(next) => {
+                  setData(next);
+                  setQrVersion((value) => value + 1);
+                }}
+              />
+            </Card>
+            <Card title="Your contact code" id="vcard" meta="the QR printed on the last page of the PDF">
+              <VcardQr profile={data.profile} saved={qrVersion} />
             </Card>
             <Card title="Logo" id="logo" meta="printed in the header of the client PDF">
               <LogoRow saved={data.logo} onSaved={setData} />

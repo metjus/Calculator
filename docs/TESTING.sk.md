@@ -34,9 +34,11 @@ rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`
 - [ ] Porovnanie s konkurenciou, ak si ju pri audite zadal.
 - [ ] Posledná strana: tri možnosti so správnymi cenami, zvýraznená tá odporúčaná, veta
       „Ak chcete riešiť len niektoré veci…" a **nikde žiadny rozpis po položkách**.
-- [ ] **Naskenuj QR kód telefónom** → má ponúknuť uloženie kontaktu s tvojím menom, telefónom a e-mailom.
-      Kód je teraz 36 mm veľký a celý (v 0.6.0 bol orezaný, preto sa nedal prečítať). IČO je vypísané
-      vedľa kódu, v kóde už nie je.
+- [ ] **Naskenuj QR kód telefónom — z exportovaného PDF, nie z náhľadu.** Má ponúknuť uloženie kontaktu
+      s tvojím menom, telefónom a e-mailom. V PDF má 36 mm; v náhľade je celá strana zmenšená do stĺpca,
+      takže kód tam má asi 75 px a neprečíta ho žiadny telefón.
+- [ ] **Nastavenia → Your contact code** ukazujú ten istý kód dosť veľký na to, aby sa dal naskenovať
+      priamo z obrazovky. Tam si ho overuj, netreba kvôli tomu robiť PDF.
 - [ ] Otvor PDF **bez internetu** — musí sa zobraziť celé vrátane písma a obrázkov.
 
 ### Po exporte

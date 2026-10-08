@@ -9,12 +9,13 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from webaudit.pdf import qr_svg, vcard
 
 from ..archive import Rules
 from ..deps import current_user, get_db, get_keybox, get_settings
 from ..keys import SERVICES, test_key
 from ..models import ApiKey, User, Workspace
-from ..pdf_service import LOGO_TYPES, MAX_LOGO_BYTES, delete_logo, save_logo
+from ..pdf_service import LOGO_TYPES, MAX_LOGO_BYTES, delete_logo, profile_of, save_logo
 from ..security import KeyBox
 from ..settings import Settings
 
@@ -179,6 +180,23 @@ async def remove_logo(
     workspace.logo = None
     await db.commit()
     return await _settings_out(db, workspace)
+
+
+@router.get("/vcard-qr", include_in_schema=False)
+async def read_vcard_qr(
+    user: User = Depends(current_user), db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> Response:
+    """The same QR the client PDF prints, big enough to scan off the screen.
+
+    In the PDF it is 36 mm and a phone reads it off paper; in the preview the whole page is
+    scaled down to the column, so the code lands at about 75 px and no camera can resolve it.
+    This is where the owner checks their own contact card actually works.
+    """
+    workspace = await db.get(Workspace, user.workspace_id)
+    profile = profile_of(workspace, settings)
+    if not (profile.name or profile.phone or profile.email):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Fill in your details first")
+    return Response(qr_svg(vcard(profile)), media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/logo", include_in_schema=False)

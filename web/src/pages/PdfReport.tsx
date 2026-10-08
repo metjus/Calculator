@@ -316,7 +316,8 @@ function Preview({ base, choices, hasLogo }: { base: string; choices: PdfChoices
       </div>
       <p className="field-hint pdf-foot">
         <Settings2 size={14} aria-hidden /> Your details{hasLogo ? ", logo" : ""} and the QR code come from{" "}
-        <Link to="/settings">Settings</Link>.{" "}
+        <Link to="/settings">Settings</Link>. The preview is the whole page shrunk to this column, so the QR here is only a thumbnail — the
+        exported PDF prints it at 36 mm, and <Link to="/settings#vcard">Settings</Link> shows it big enough to scan.{" "}
         {hasLogo ? (
           <>
             <Check size={14} aria-hidden /> Logo in use.
