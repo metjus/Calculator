@@ -20,6 +20,9 @@ export function NewAudit() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<CreateResult["invalid"]>([]);
+  // Businesses marked "do not contact" are never audited without a word (the brief).
+  const [blocked, setBlocked] = useState<CreateResult["blocked"]>([]);
+  const [madeAudit, setMadeAudit] = useState<number | null>(null);
   const [aiReview, setAiReview] = useState(false);
   const [competitors, setCompetitors] = useState("");
   const [csvRows, setCsvRows] = useState(0);
@@ -36,6 +39,7 @@ export function NewAudit() {
     setBusy(true);
     setError(null);
     setInvalid([]);
+    setBlocked([]);
     try {
       let result: CreateResult;
       if (source === "paste") {
@@ -52,9 +56,16 @@ export function NewAudit() {
       const notes = [
         result.no_website_leads && `${plural(result.no_website_leads, "business")} without a website added to Customers`,
         result.skipped_duplicates && `${plural(result.skipped_duplicates, "duplicate")} skipped`,
+        result.known.length && `${plural(result.known.length, "business")} you have already approached`,
         result.invalid.length && `${plural(result.invalid.length, "entry", "entries")} skipped (not a web address)`,
       ].filter(Boolean);
       if (notes.length) toast(notes.join(" · "));
+      if (result.blocked.length) {
+        // Stay here and say who was left out, so the decision is the user's.
+        setBlocked(result.blocked);
+        setMadeAudit(result.audit?.id ?? null);
+        return;
+      }
       if (result.audit) navigate(`/audits/${result.audit.id}`);
       else navigate("/customers");
     } catch (e) {
@@ -67,9 +78,46 @@ export function NewAudit() {
     }
   }
 
+  /** The second half of the "do not contact" decision: audit them after all. */
+  async function auditBlocked() {
+    setBusy(true);
+    try {
+      const result = await api<CreateResult>("/api/audits", {
+        body: {
+          project: project || null,
+          urls: blocked.map((row) => row.url).join(" "),
+          ai_review: aiReview,
+          competitors,
+          allow_do_not_contact: true,
+        },
+      });
+      if (result.audit) navigate(`/audits/${result.audit.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <PageHeader eyebrow="Audits" title="New audit" sub="Websites are checked in the background, two at a time, politely and within a time limit each." />
+      {blocked.length > 0 && (
+        <Banner kind="warn">
+          Left out of the audit because {blocked.length === 1 ? "this business is" : "these businesses are"} marked “do not contact”:{" "}
+          <strong>{blocked.map((row) => row.name).join(", ")}</strong>.
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <Button size="sm" loading={busy} onClick={auditBlocked}>
+              Audit {blocked.length === 1 ? "it" : "them"} anyway
+            </Button>
+            {madeAudit !== null && (
+              <Button size="sm" variant="primary" onClick={() => navigate(`/audits/${madeAudit}`)}>
+                Go to the audit of the rest
+              </Button>
+            )}
+          </div>
+        </Banner>
+      )}
       <form onSubmit={submit} className="grid-2" style={{ alignItems: "start" }}>
         <Card title="Websites">
           <div className="stack">

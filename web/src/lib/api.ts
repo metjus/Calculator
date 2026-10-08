@@ -56,7 +56,20 @@ export type KeyState = {
 };
 
 export type Profile = { name: string; company_id: string; phone: string; email: string };
-export type SettingsData = { keys: Record<KeyState["service"], KeyState>; profile: Profile; pdf_language: "sk" | "cs" | "en"; logo: boolean };
+export type CrmRules = {
+  archive_after_months: number;
+  recontact_after_months: number;
+  clear_notes_after_years: number;
+  waiting_days: number;
+  proposal_days: number;
+};
+export type SettingsData = {
+  keys: Record<KeyState["service"], KeyState>;
+  profile: Profile;
+  pdf_language: "sk" | "cs" | "en";
+  logo: boolean;
+  crm_rules: CrmRules;
+};
 
 export type AuditStatus = "queued" | "running" | "done" | "cancelled" | "failed";
 export type Audit = {
@@ -97,6 +110,10 @@ export type CreateResult = {
   invalid: { input: string; error: string }[];
   no_website_leads: number;
   skipped_duplicates: number;
+  /** Left out because the business is marked "do not contact" — send again with allow_do_not_contact. */
+  blocked: { url: string; name: string }[];
+  /** Audited, but these businesses have already been approached. */
+  known: { url: string; name: string; status: string }[];
 };
 
 export type CheckResult = { id: string; area: string; status: "pass" | "warn" | "fail" | "na"; summary: string; evidence: string[] };
@@ -172,6 +189,8 @@ export type CustomerRow = {
   last_contact: string | null;
   contacts: number;
   created_at: string;
+  archived_at: string | null;
+  has_notes: boolean;
 };
 export type FollowUp = CustomerRow & { reason: "waiting" | "next_step" };
 export type CrmStats = {
@@ -184,6 +203,17 @@ export type CrmStats = {
   open: number;
   total: number;
 };
+export type DuplicateMatch = {
+  id: number;
+  name: string | null;
+  domain: string | null;
+  status: CrmStatus;
+  status_label: string;
+  do_not_contact: boolean;
+  archived_at: string | null;
+  status_at: string | null;
+  created_at: string;
+};
 export type CustomerList = {
   rows: CustomerRow[];
   follow_ups: FollowUp[];
@@ -191,10 +221,16 @@ export type CustomerList = {
   statuses: { id: CrmStatus; label: string; open: boolean }[];
   stats: CrmStats;
   total: number;
+  archived: number;
+  /** Rejections old enough to be worth another try. */
+  recontact: CustomerRow[];
+  /** Archived long enough that their notes are due to be cleared — a warning, never a deletion. */
+  notes_due: CustomerRow[];
+  rules: CrmRules;
 };
 export type TimelineEntry = {
   id: number;
-  kind: "status" | "contact" | "proposal" | "note" | "audit";
+  kind: "status" | "contact" | "proposal" | "note" | "audit" | "archived" | "unarchived" | "notes_cleared";
   at: string | null;
   status?: CrmStatus | null;
   status_label?: string | null;

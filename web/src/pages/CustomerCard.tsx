@@ -1,8 +1,11 @@
 import {
+  Archive,
+  ArchiveRestore,
   CalendarClock,
   ChevronRight,
   ExternalLink,
   FileText,
+  Eraser,
   Mail,
   MessageSquare,
   Phone,
@@ -15,7 +18,7 @@ import {
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Banner, Button, Card, Field, PageHeader, ScoreBadge, Spinner, Tag, TextArea, TextInput } from "../components/ui";
-import { api, type ContactWay, type CrmStatus, type CustomerCard as Card_, type TimelineEntry } from "../lib/api";
+import { api, type ContactWay, type CrmStatus, type CustomerCard as Card_, type DuplicateMatch, type TimelineEntry } from "../lib/api";
 import { formatDate } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
@@ -91,6 +94,18 @@ export function CustomerCard() {
                 <FileText size={16} aria-hidden /> Open the audit
               </Link>
             )}
+            <Button
+              icon={customer.archived_at ? ArchiveRestore : Archive}
+              onClick={() =>
+                call(
+                  `/api/companies/${id}/${customer.archived_at ? "unarchive" : "archive"}`,
+                  { method: "POST" },
+                  customer.archived_at ? "Back among the customers" : "Moved to the archive",
+                )
+              }
+            >
+              {customer.archived_at ? "Bring back" : "Archive"}
+            </Button>
             <Link to="/audits/new" className="btn btn-primary">
               Audit again
             </Link>
@@ -98,10 +113,17 @@ export function CustomerCard() {
         }
       />
 
+      {customer.archived_at && (
+        <Banner kind="info">
+          In the archive since {formatDate(customer.archived_at)}. Nothing has been deleted — press <em>Bring back</em> to work with them
+          again.
+        </Banner>
+      )}
       {customer.do_not_contact && <Banner kind="warn">This customer is marked “do not contact”.</Banner>}
+      <Duplicates id={Number(id)} />
       {customer.proposal_warning && (
         <Banner kind="warn">
-          <TriangleAlert size={16} aria-hidden /> The design demo has been up for more than 30 days — it may be time to take it down.
+          <TriangleAlert size={16} aria-hidden /> The design demo has been up for a while — it may be time to take it down.
         </Banner>
       )}
 
@@ -175,7 +197,18 @@ export function CustomerCard() {
 }
 
 function Entry({ entry, onDelete }: { entry: TimelineEntry; onDelete?: () => void }) {
-  const Icon = entry.kind === "contact" ? WAY_ICON[entry.way ?? "message"] : entry.kind === "audit" ? FileText : CalendarClock;
+  const Icon =
+    entry.kind === "contact"
+      ? WAY_ICON[entry.way ?? "message"]
+      : entry.kind === "audit"
+        ? FileText
+        : entry.kind === "archived"
+          ? Archive
+          : entry.kind === "unarchived"
+            ? ArchiveRestore
+            : entry.kind === "notes_cleared"
+              ? Eraser
+              : CalendarClock;
   const title =
     entry.kind === "status"
       ? `Status: ${entry.status_label}`
@@ -183,9 +216,15 @@ function Entry({ entry, onDelete }: { entry: TimelineEntry; onDelete?: () => voi
         ? `Contacted · ${WAY_LABEL[entry.way ?? "message"]}`
         : entry.kind === "proposal"
           ? "Design demo sent"
-          : entry.kind === "audit"
-            ? `Website audited${entry.score !== null && entry.score !== undefined ? ` · ${entry.score}/100` : ` · ${entry.state}`}`
-            : "Note";
+          : entry.kind === "archived"
+            ? "Moved to the archive"
+            : entry.kind === "unarchived"
+              ? "Brought back from the archive"
+              : entry.kind === "notes_cleared"
+                ? "Notes cleared (the business, the website and the results stay)"
+                : entry.kind === "audit"
+                  ? `Website audited${entry.score !== null && entry.score !== undefined ? ` · ${entry.score}/100` : ` · ${entry.state}`}`
+                  : "Note";
   return (
     <li>
       <Icon size={15} aria-hidden />
@@ -204,6 +243,25 @@ function Entry({ entry, onDelete }: { entry: TimelineEntry; onDelete?: () => voi
         </button>
       ) : null}
     </li>
+  );
+}
+
+/** The brief's duplicate check, on the card this time: who else looks like the same business. */
+function Duplicates({ id }: { id: number }) {
+  const found = useApi<DuplicateMatch[]>(`/api/companies/${id}/duplicates`);
+  const rows = found.data ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <Banner kind="warn">
+      This looks like a business you already have:{" "}
+      {rows.map((row, index) => (
+        <span key={row.id}>
+          {index > 0 && ", "}
+          <Link to={`/customers/${row.id}`}>{row.name || row.domain || `#${row.id}`}</Link> — {row.status_label}
+        </span>
+      ))}
+      .
+    </Banner>
   );
 }
 
@@ -330,7 +388,7 @@ function Details({ customer, onSaved }: { customer: Card_["customer"]; onSaved: 
         <Field label="Next step on">
           {(fid) => <input id={fid} className="input" type="date" value={form.next_step_at} onChange={set("next_step_at")} />}
         </Field>
-        <Field label="Design demo" hint="The live preview you sent. After 30 days the program reminds you to take it down.">
+        <Field label="Design demo" hint="The live preview you sent. The program reminds you to take it down after the time set in Settings.">
           {(fid) => <TextInput id={fid} value={form.proposal_url} onChange={set("proposal_url")} placeholder="https://…" />}
         </Field>
         <Field label="Notes" hint="Only about the business — never a contact person, phone number or e-mail.">

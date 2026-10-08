@@ -16,6 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from webaudit.inputs import normalize_url
 
+from ..archive import Rules, clear_notes, notes_due, recontact_due, run_archive
 from ..companies import domain_of
 from ..crm import (
     CONTACT_WAYS,
@@ -99,11 +100,19 @@ async def list_companies(
     status_filter: str = Query(default="", alias="status"),
     project: str = "",
     website: str = Query(default="", pattern="^(|yes|no)$"),
+    archived: str = Query(default="no", pattern="^(|yes|no)$"),
     q: str = "",
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """The customer list with the filters of the brief, the charts, and who needs a nudge."""
+    """The customer list with the filters of the brief, the charts, and who needs a nudge.
+
+    Reading the list is also when the archive pass runs: it is a couple of UPDATEs, so the
+    program needs no scheduler to keep the funnel free of customers it has finished with.
+    """
+    rules = Rules.of(user.workspace)
+    today = now()
+    await run_archive(db, user.workspace_id, rules, today)
     everything = await _rows(db, user)
     wanted = {s for s in status_filter.split(",") if s in STATUSES}
     needle = q.strip().lower()
@@ -113,22 +122,29 @@ async def list_companies(
         if (not wanted or row["status"] in wanted)
         and (not project or (row["project"] or "") == project)
         and (not website or (row["has_website"] if website == "yes" else not row["has_website"]))
+        and (not archived or (bool(row["archived_at"]) if archived == "yes" else not row["archived_at"]))
         and (not needle or needle in f"{row['name'] or ''} {row['domain'] or ''} {row['project'] or ''}".lower())
     ]
-    today = now()
     follow_ups = []
     for row in everything:
-        reason = follow_up_reason(row, today)
+        reason = follow_up_reason(row, today, rules.waiting_days)
         if reason:
             follow_ups.append({**row, "reason": reason})
     follow_ups.sort(key=lambda row: row["next_step_at"] or row["status_at"] or today)
+    live = [row for row in everything if not row["archived_at"]]
     return {
         "rows": rows,
         "follow_ups": follow_ups,
         "projects": sorted({row["project"] for row in everything if row["project"]}),
         "statuses": [{"id": key, "label": meta["label"], "open": meta["open"]} for key, meta in STATUSES.items()],
-        "stats": await statistics(db, user.workspace_id, rows),
-        "total": len(everything),
+        "stats": await statistics(db, user.workspace_id, live),
+        "total": len(live),
+        "archived": sum(1 for row in everything if row["archived_at"]),
+        # The two lists the archive produces: who is worth another try, and whose notes are due
+        # to be cleared - the second is only ever a warning, never a deletion.
+        "recontact": [row for row in everything if recontact_due(row, rules, today)],
+        "notes_due": [row for row in everything if notes_due(row, rules, today)],
+        "rules": rules.to_dict(),
     }
 
 
@@ -160,6 +176,64 @@ async def create_company(body: CompanyIn, user: User = Depends(current_user), db
     return await read_company(company.id, user, db)
 
 
+def _duplicate_clauses(name: str | None, domain: str | None) -> list:
+    """The brief compares the website's domain and the business name."""
+    clauses = []
+    if domain:
+        clauses.append(Company.domain == domain)
+    if name:
+        clauses.append(func.lower(Company.name) == name.lower())
+    return clauses
+
+
+async def _matches(db: AsyncSession, workspace_id: int, name: str | None, domain: str | None, exclude: int | None = None) -> list[Company]:
+    clauses = _duplicate_clauses(name, domain)
+    if not clauses:
+        return []
+    query = select(Company).where(Company.workspace_id == workspace_id, or_(*clauses))
+    if exclude is not None:
+        query = query.where(Company.id != exclude)
+    return list(await db.scalars(query.limit(10)))
+
+
+def _match_out(other: Company) -> dict[str, Any]:
+    state = other.status or default_status(other, False)
+    return {
+        "id": other.id,
+        "name": other.name,
+        "domain": other.domain,
+        "status": state,
+        "status_label": STATUSES[state]["label"],
+        "do_not_contact": other.do_not_contact,
+        "archived_at": aware(other.archived_at),
+        "status_at": aware(other.status_at),
+        "created_at": aware(other.created_at),
+    }
+
+
+@router.get("/check")
+async def check_before_adding(
+    name: str = "", url: str = "", user: User = Depends(current_user), db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """Has this business been approached already? Asked by the add form before it saves."""
+    address = (url or "").strip()
+    try:
+        domain = domain_of(normalize_url(address)) if address else None
+    except ValueError:
+        domain = None
+    found = await _matches(db, user.workspace_id, (name or "").strip() or None, domain)
+    return {"duplicates": [_match_out(other) for other in found], "do_not_contact": any(other.do_not_contact for other in found)}
+
+
+@router.post("/clear-due-notes")
+async def clear_due_notes(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict[str, int]:
+    """Clear the notes the archive says are due - only ever after the owner pressed the button."""
+    rules = Rules.of(user.workspace)
+    today = now()
+    due = [row["id"] for row in await _rows(db, user) if notes_due(row, rules, today)]
+    return {"cleared": await clear_notes(db, due, today)}
+
+
 @router.get("/{company_id}")
 async def read_company(company_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     company = await _own(db, user, company_id)
@@ -173,7 +247,7 @@ async def read_company(company_id: int, user: User = Depends(current_user), db: 
             "notes": company.notes,
             "proposal_url": company.proposal_url,
             "proposal_sent_at": aware(company.proposal_sent_at),
-            "proposal_warning": proposal_warning(company, now()),
+            "proposal_warning": proposal_warning(company, now(), Rules.of(user.workspace).proposal_days),
             "manual_check": company.manual_check,
             "source": "google" if company.place_id else ("osm" if company.osm_id else "manual"),
         },
@@ -222,6 +296,29 @@ async def change_status(
         company.deal_value = body.deal_value
     db.add(set_status(company, body.status, body.note))
     await db.commit()
+    return await read_company(company_id, user, db)
+
+
+@router.post("/{company_id}/archive")
+async def archive_company(company_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Put the customer aside by hand, without waiting for the archive rule."""
+    company = await _own(db, user, company_id)
+    if company.archived_at is None:
+        company.archived_at = now()
+        db.add(CompanyEvent(company_id=company.id, kind="archived", status=company.status, at=company.archived_at))
+        await db.commit()
+    return await read_company(company_id, user, db)
+
+
+@router.post("/{company_id}/unarchive")
+async def unarchive_company(company_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Bring the customer back into the funnel - after a rejection went stale, say."""
+    company = await _own(db, user, company_id)
+    if company.archived_at is not None:
+        company.archived_at = None
+        company.unarchived_at = now()
+        db.add(CompanyEvent(company_id=company.id, kind="unarchived", status=company.status, at=company.unarchived_at))
+        await db.commit()
     return await read_company(company_id, user, db)
 
 
@@ -299,24 +396,4 @@ async def set_manual_check(
 async def duplicates(company_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
     """Other customers with the same domain or name - the brief's duplicate check."""
     company = await _own(db, user, company_id)
-    clauses = []
-    if company.domain:
-        clauses.append(Company.domain == company.domain)
-    if company.name:
-        clauses.append(func.lower(Company.name) == company.name.lower())
-    if not clauses:
-        return []
-    rows = await db.scalars(
-        select(Company).where(Company.workspace_id == user.workspace_id, Company.id != company.id, or_(*clauses)).limit(10)
-    )
-    return [
-        {
-            "id": other.id,
-            "name": other.name,
-            "domain": other.domain,
-            "status": other.status or default_status(other, False),
-            "status_label": STATUSES[other.status or default_status(other, False)]["label"],
-            "created_at": aware(other.created_at),
-        }
-        for other in rows
-    ]
+    return [_match_out(other) for other in await _matches(db, user.workspace_id, company.name, company.domain, exclude=company.id)]

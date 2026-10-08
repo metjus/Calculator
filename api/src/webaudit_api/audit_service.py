@@ -57,13 +57,29 @@ class CreatedAudit:
     invalid: list[dict[str, str]]
     no_website_leads: int
     skipped_duplicates: int
+    # Stage 8: what the import found in the CRM. "Do not contact" is left out of the audit
+    # unless the user says otherwise; the rest is only told to them.
+    blocked: list[dict[str, str]] = field(default_factory=list)
+    known: list[dict[str, str]] = field(default_factory=list)
+
+
+# Statuses that mean this business has already been approached, so the import says so.
+APPROACHED = ("contacted", "waiting", "interested", "proposal", "deal", "not_interested", "no_answer")
 
 
 async def create_audit(
-    db: AsyncSession, workspace_id: int, request: AuditRequest, *, max_urls: int, options: dict | None = None
+    db: AsyncSession,
+    workspace_id: int,
+    request: AuditRequest,
+    *,
+    max_urls: int,
+    options: dict | None = None,
+    allow_do_not_contact: bool = False,
 ) -> CreatedAudit:
     seen: set[str] = set()
     sites: list[AuditSite] = []
+    blocked: list[dict[str, str]] = []
+    known: list[dict[str, str]] = []
     leads = duplicates = 0
     for index, row in enumerate(request.rows):
         project = row.project or request.project
@@ -85,6 +101,13 @@ async def create_audit(
         company = await get_or_create_company(
             db, workspace_id, url=row.url, name=row.company, project=project, place_id=place_id, osm_id=osm_id
         )
+        label = company.name or domain or row.url
+        if company.do_not_contact and not allow_do_not_contact:
+            # The brief: a business marked "do not contact" is never audited without a word.
+            blocked.append({"url": row.url, "name": label})
+            continue
+        if company.status in APPROACHED or company.archived_at:
+            known.append({"url": row.url, "name": label, "status": company.status or ""})
         sites.append(AuditSite(position=len(sites) + 1, input_url=row.url, competitors=row.competitors, company_id=company.id))
 
     audit = None
@@ -94,4 +117,6 @@ async def create_audit(
         await db.flush()
         db.add(AuditEvent(audit_id=audit.id, kind="queued", data={"total": len(sites)}))
     await db.commit()
-    return CreatedAudit(audit=audit, invalid=request.invalid, no_website_leads=leads, skipped_duplicates=duplicates)
+    return CreatedAudit(
+        audit=audit, invalid=request.invalid, no_website_leads=leads, skipped_duplicates=duplicates, blocked=blocked, known=known
+    )

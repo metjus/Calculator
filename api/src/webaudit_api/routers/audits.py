@@ -86,6 +86,10 @@ class CreateResult(BaseModel):
     invalid: list[dict[str, str]]
     no_website_leads: int
     skipped_duplicates: int
+    # Left out because the business is marked "do not contact"; send the same request with
+    # allow_do_not_contact to audit them anyway.
+    blocked: list[dict[str, str]] = []
+    known: list[dict[str, str]] = []  # audited, but these businesses were already approached
 
 
 class OfferIn(BaseModel):
@@ -110,6 +114,7 @@ class CreateFromText(BaseModel):
     urls: str = Field(max_length=200_000)
     ai_review: bool = False  # Claude's design review for every website (needs a Claude key)
     competitors: str = Field(default="", max_length=20_000)  # compared with every website in the audit
+    allow_do_not_contact: bool = False  # the user confirmed the businesses they marked "do not contact"
 
 
 def _site_out(site: AuditSite) -> SiteOut:
@@ -146,13 +151,15 @@ async def _own_audit(db: AsyncSession, user: User, audit_id: int) -> Audit:
 
 
 def created_response(result: CreatedAudit) -> CreateResult:
-    if result.audit is None and result.no_website_leads == 0:
+    if result.audit is None and result.no_website_leads == 0 and not result.blocked:
         raise HTTPException(422, {"message": "No valid website addresses", "invalid": result.invalid})
     return CreateResult(
         audit=AuditOut.model_validate(result.audit, from_attributes=True) if result.audit else None,
         invalid=result.invalid,
         no_website_leads=result.no_website_leads,
         skipped_duplicates=result.skipped_duplicates,
+        blocked=result.blocked,
+        known=result.known,
     )
 
 
@@ -184,7 +191,15 @@ async def create_from_text(
     request = AuditRequest(project=(body.project or "").strip() or None, rows=rows, invalid=invalid)
     _add_competitors(request, body.competitors)
     options = await _options(db, keybox, user, body.ai_review)
-    return created_response(await create_audit(db, user.workspace_id, request, max_urls=settings.max_urls_per_audit, options=options))
+    created = await create_audit(
+        db,
+        user.workspace_id,
+        request,
+        max_urls=settings.max_urls_per_audit,
+        options=options,
+        allow_do_not_contact=body.allow_do_not_contact,
+    )
+    return created_response(created)
 
 
 @router.post("/csv", response_model=CreateResult, status_code=201)
@@ -193,6 +208,7 @@ async def create_from_csv(
     project: str | None = Form(default=None),
     ai_review: bool = Form(default=False),
     competitors: str = Form(default="", max_length=20_000),
+    allow_do_not_contact: bool = Form(default=False),
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     keybox: KeyBox = Depends(get_keybox),
@@ -208,7 +224,15 @@ async def create_from_csv(
     request = AuditRequest(project=(project or "").strip() or None, rows=rows, invalid=invalid)
     _add_competitors(request, competitors)
     options = await _options(db, keybox, user, ai_review)
-    return created_response(await create_audit(db, user.workspace_id, request, max_urls=settings.max_urls_per_audit, options=options))
+    created = await create_audit(
+        db,
+        user.workspace_id,
+        request,
+        max_urls=settings.max_urls_per_audit,
+        options=options,
+        allow_do_not_contact=allow_do_not_contact,
+    )
+    return created_response(created)
 
 
 @router.get("", response_model=list[AuditOut])

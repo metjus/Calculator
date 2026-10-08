@@ -33,6 +33,9 @@ class Workspace(Base):
     # offer options last used, so the prices they typed come back prefilled next time.
     logo: Mapped[str | None] = mapped_column(String(64), nullable=True)
     pdf_offer: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    # When customers move to the archive, when to offer them again and when to warn that their
+    # notes are due to be cleared - the brief's archive rules (stage 8). None = the defaults.
+    crm_rules: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     # Per-workspace overrides of the core JSON config (weights, thresholds, texts).
     config_overrides: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -106,6 +109,12 @@ class Company(Base):
     proposal_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     proposal_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deal_value: Mapped[int | None] = mapped_column(Integer, nullable=True)  # agreed price, whole currency units
+    # --- Archive (stage 8). Nobody is ever deleted automatically; closed customers only move
+    # aside, so the user still knows who was already approached.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When the owner brought them back by hand. The archive rule then leaves them alone until
+    # their status changes again, so "bring back" is not undone by the next pass.
+    unarchived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @property
     def has_website(self) -> bool:

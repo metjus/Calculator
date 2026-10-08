@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A website-audit SaaS for web designers (brief in Slovak: `docs/SPEC.sk.md`; SaaS translation and stage plan: `docs/ARCHITECTURE.md`). The brief is built **in stages, showing the user each result before continuing**; check the stage table in `docs/ARCHITECTURE.md` before starting new work. The brief also requires showing UI design proposals before writing any UI code.
 
-Stages 1–5 and 7 are built (stage 6 was dropped at the owner's request): `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
+Stages 1–5, 7 and 8 are built (stage 6 was dropped at the owner's request): `core/` (scanning library + CLI), `api/` (FastAPI service `webaudit_api`) and `web/` (React SPA in direction B “Petrol”, tokens and components in `web/DESIGN-SYSTEM.md`). The owner uses it as a Windows program for now: `desktop/` (`webaudit_desktop`) packages the same app as WebAudit.exe (local mode, data next to the exe, scans with Edge); the SaaS deployment comes later. See `desktop/README.md`.
 
 ## Commands (run from `core/`)
 
@@ -102,6 +102,12 @@ Invariants that span files:
 - The worker (`worker.py`) is the only place scans run; it maps core `ProgressEvent`s to `audit_events` rows that the SSE endpoint streams.
   One audit runs at a time: its loop restarts itself after any failure, an audit interrupted by a restart is closed (never re-queued, which
   used to block every later audit), and `GET /api/audits/{id}` carries a `queue` field so the UI says what a waiting audit waits for.
+- **The archive** (`archive.py`, stage 8): the pass runs on `GET /api/companies`, not on a scheduler. It only ever *moves* customers
+  (`companies.archived_at`); a customer brought back by hand (`unarchived_at`) is left alone until their status changes again. Notes due
+  for clearing are reported, never cleared without the user pressing the button. The five rules live in `workspaces.crm_rules` and are
+  edited in Settings; `Rules.of(workspace)` supplies the defaults.
+- A business marked `do_not_contact` is never audited unless the request carries `allow_do_not_contact`; `create_audit` returns it in
+  `blocked` so the screen can ask.
 - Google Places results: store only `place_id`. OSM names may be stored; show the ODbL attribution wherever OSM data appears.
 - External services in tests: `app.state.search_transport` (httpx `MockTransport`); never call real Google/OSM from tests.
 - **Local mode** (`WEBAUDIT_LOCAL_MODE`, desktop only): `/api/auth/local?token=` signs in the single local user with the launcher's per-launch token; the CSRF middleware also rejects any Host other than `127.0.0.1`/`localhost`; `POST /api/local/quit` calls the launcher's `on_quit`. Never enable it on a server.

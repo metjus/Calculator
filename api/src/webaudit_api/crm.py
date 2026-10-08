@@ -110,6 +110,8 @@ def row_out(row: Row) -> dict[str, Any]:
         "status": status,
         "status_label": STATUSES[status]["label"],
         "status_at": aware(company.status_at),
+        "archived_at": aware(company.archived_at),
+        "has_notes": bool(company.notes),
         "next_step": company.next_step,
         "next_step_at": aware(company.next_step_at),
         "deal_value": company.deal_value,
@@ -124,7 +126,7 @@ def row_out(row: Row) -> dict[str, Any]:
 
 def follow_up_reason(row: dict[str, Any], today: datetime, waiting_days: int = WAITING_DAYS) -> str | None:
     """Why this customer is on the follow-up list, or None when they are not."""
-    if row["do_not_contact"]:
+    if row["do_not_contact"] or row["archived_at"]:
         return None
     next_step_at = row["next_step_at"]
     if next_step_at and next_step_at <= today:
@@ -136,10 +138,10 @@ def follow_up_reason(row: dict[str, Any], today: datetime, waiting_days: int = W
     return None
 
 
-def proposal_warning(company: Company, today: datetime) -> bool:
-    """True when a design demo has been up longer than PROPOSAL_DAYS and should come down."""
+def proposal_warning(company: Company, today: datetime, days: int = PROPOSAL_DAYS) -> bool:
+    """True when a design demo has been up longer than the agreed days and should come down."""
     sent = aware(company.proposal_sent_at)
-    return bool(sent and company.proposal_url and sent <= today - timedelta(days=PROPOSAL_DAYS))
+    return bool(sent and company.proposal_url and sent <= today - timedelta(days=days))
 
 
 async def timeline(db: AsyncSession, company: Company, workspace_id: int) -> list[dict[str, Any]]:

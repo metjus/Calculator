@@ -69,8 +69,49 @@ rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`
 - [ ] **Delete notes** zmaže poznámky, ale nechá firmu, web, dátumy a výsledky auditov.
 - [ ] **Delete, keep the address** nechá adresu označenú „do not contact".
 
+## Etapa 8 — archív, duplicity, osloviť znova (verzia 0.8.0)
+
+### Nastavenia → Reminders and the archive
+
+- [ ] Päť čísel: follow up (dni), stiahnuť ukážku (dni), archív (mesiace), osloviť znova (mesiace),
+      zmazať poznámky (roky v archíve). **Save rules** → hláška „Rules saved".
+- [ ] Skús uložiť 0 → má to odmietnuť.
+- [ ] Zníž „Move to the archive after" na 1 mesiac → zákazníci so stavom Deal / Nemá záujem /
+      Neozval sa starší než mesiac sa pri najbližšom otvorení Customers presunú do archívu.
+
+### Archív
+
+- [ ] Tlačidlo **Archive (počet)** hore vpravo na obrazovke Customers. Prepne na archív.
+- [ ] V archíve sa dá hľadať aj filtrovať rovnako ako v zozname. Stĺpec vpravo ukazuje dátum archivácie.
+- [ ] Archivovaný zákazník **nie je** v lieviku, v grafoch ani vo Follow up.
+- [ ] Otvor kartu → modrý pruh „In the archive since…", tlačidlo **Bring back** ho vráti späť
+      a do časovej osi pribudne „Brought back from the archive".
+- [ ] Vrátený zákazník sa **nesmie** sám znova zarchivovať, kým nezmeníš jeho stav.
+- [ ] Na karte je aj tlačidlo **Archive** — odloží zákazníka ručne, bez čakania na pravidlo.
+
+### Osloviť znova
+
+- [ ] Karta **Worth another try** na obrazovke Customers: tí, čo odmietli alebo sa neozvali
+      pred viac než 12 mesiacmi. Zákazka tam nepatrí, „do not contact" tiež nie.
+
+### Poznámky po čase
+
+- [ ] Ak je niekto v archíve dlhšie než 2 roky a má poznámky, hore sa objaví oranžový pruh.
+      **Nič sa nezmazalo** — je to len upozornenie.
+- [ ] **Clear them now** → potvrdenie → poznámky zmiznú, ale firma, web, dátumy aj výsledky
+      auditov zostanú a v časovej osi pribudne „Notes cleared".
+
+### Duplicity a „do not contact"
+
+- [ ] **Add customer** s menom alebo webom, ktorý už máš → žltý pruh „You have approached this
+      business already" s odkazom na existujúceho zákazníka. Druhý klik na **Add anyway** ho pridá.
+- [ ] Ak je ten existujúci označený „do not contact", pruh je červený.
+- [ ] Na karte zákazníka, ktorý má dvojníka, je rovnaké upozornenie.
+- [ ] **Nový audit** s webom firmy označenej „do not contact" → web sa **neauditoval**, hore je
+      pruh s jej menom a tlačidlom **Audit it anyway**. Ostatné weby z toho istého zoznamu
+      sa normálne auditujú.
+- [ ] Ak je medzi webmi niekto, koho si už oslovil, dole vyskočí hláška „… you have already approached".
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.
-- Archív, automatické presuny a mazanie po čase (etapa 8).
-- Kontrola duplicít je v API, ale zatiaľ bez obrazovky.

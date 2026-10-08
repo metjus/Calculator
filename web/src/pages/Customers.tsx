@@ -1,10 +1,10 @@
-import { BellRing, Plus, Search, Users } from "lucide-react";
+import { Archive, BellRing, Eraser, Plus, RotateCcw, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bars, Donut, Legend } from "../components/charts";
 import { Banner, Button, Card, EmptyState, Field, PageHeader, Spinner, Tag, TextInput } from "../components/ui";
-import { api, type CrmStatus, type CustomerCard, type CustomerList } from "../lib/api";
-import { formatDate } from "../lib/format";
+import { api, type CrmStatus, type CustomerCard, type CustomerList, type DuplicateMatch } from "../lib/api";
+import { formatDate, plural } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
 
@@ -26,7 +26,8 @@ export function customerName(row: { name: string | null; domain: string | null }
 }
 
 export function Customers() {
-  const list = useApi<CustomerList>("/api/companies");
+  const [view, setView] = useState<"active" | "archive">("active");
+  const list = useApi<CustomerList>(`/api/companies?archived=${view === "archive" ? "yes" : "no"}`);
   const toast = useToast();
   const [status, setStatus] = useState<CrmStatus | "">("");
   const [project, setProject] = useState("");
@@ -50,24 +51,74 @@ export function Customers() {
   if (!data) return list.loading ? <Spinner /> : null;
 
   const stats = data.stats;
+  const archive = view === "archive";
   const slices = stats.by_status.map((row) => ({ label: row.label, value: row.count, color: STATUS_COLOUR[row.status] }));
 
   return (
     <>
       <PageHeader
         eyebrow="My workspace"
-        title="Customers"
-        sub={`${stats.total} in total · ${stats.open} still open · ${data.follow_ups.length} need a nudge`}
+        title={archive ? "Archive" : "Customers"}
+        sub={
+          archive
+            ? `${data.archived} put aside · they move here ${data.rules.archive_after_months} months after their last step, and nothing is ever deleted`
+            : `${stats.total} in total · ${stats.open} still open · ${plural(data.follow_ups.length, "needs", "need")} a nudge`
+        }
         actions={
-          <Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>
-            Add customer
-          </Button>
+          <>
+            <Button
+              icon={view === "archive" ? Users : Archive}
+              onClick={() => setView((current) => (current === "archive" ? "active" : "archive"))}
+            >
+              {archive ? "Back to customers" : `Archive (${data.archived})`}
+            </Button>
+            <Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>
+              Add customer
+            </Button>
+          </>
         }
       />
 
       {adding && <AddCustomer onDone={(message) => { setAdding(false); if (message) { toast(message); void list.reload(); } }} />}
 
-      {data.follow_ups.length > 0 && (
+      {data.notes_due.length > 0 && (
+        <Banner kind="warn">
+          <strong>{plural(data.notes_due.length, "customer")}</strong> {data.notes_due.length === 1 ? "has" : "have"} been in the archive
+          longer than {data.rules.clear_notes_after_years} {data.rules.clear_notes_after_years === 1 ? "year" : "years"}, so their notes are
+          due to be cleared. The business, the website, the dates and the audit results stay.{" "}
+          <Button
+            size="sm"
+            icon={Eraser}
+            onClick={async () => {
+              if (!window.confirm(`Clear the notes of ${plural(data.notes_due.length, "customer")}? This cannot be undone.`)) return;
+              const done = await api<{ cleared: number }>("/api/companies/clear-due-notes", { method: "POST" });
+              toast(`Notes cleared for ${plural(done.cleared, "customer")}`);
+              void list.reload();
+            }}
+          >
+            Clear them now
+          </Button>
+        </Banner>
+      )}
+
+      {!archive && data.recontact.length > 0 && (
+        <Card title="Worth another try" meta={`turned you down over ${data.rules.recontact_after_months} months ago`}>
+          <ul className="follow-list">
+            {data.recontact.slice(0, 8).map((row) => (
+              <li key={row.id}>
+                <RotateCcw size={15} aria-hidden className="lvl-ok" />
+                <Link to={`/customers/${row.id}`} className="cell-main">
+                  {customerName(row)}
+                </Link>
+                <span className="cell-sub">Since {formatDate(row.status_at)}</span>
+                <Tag color={STATUS_COLOUR[row.status]}>{row.status_label}</Tag>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {!archive && data.follow_ups.length > 0 && (
         <Card title="Follow up" meta={`${data.follow_ups.length} waiting on you`} id="followups">
           <ul className="follow-list">
             {data.follow_ups.slice(0, 8).map((row) => (
@@ -88,6 +139,7 @@ export function Customers() {
         </Card>
       )}
 
+      {!archive && (
       <div className="grid-crm">
         <Card title="Funnel" meta="where everyone stands">
           <Bars
@@ -118,12 +170,9 @@ export function Customers() {
           )}
         </Card>
       </div>
+      )}
 
-      <Card
-        title="All customers"
-        meta={`${rows.length} shown`}
-        id="list"
-      >
+      <Card title={archive ? "In the archive" : "All customers"} meta={`${rows.length} shown`} id="list">
         <div className="filters">
           <div className="search">
             <Search size={16} aria-hidden />
@@ -153,7 +202,11 @@ export function Customers() {
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState icon={Users} title="Nobody here">Run an audit, search for businesses, or add a customer by hand.</EmptyState>
+          <EmptyState icon={archive ? Archive : Users} title="Nobody here">
+            {archive
+              ? `Customers you are done with move here ${data.rules.archive_after_months} months after their last step.`
+              : "Run an audit, search for businesses, or add a customer by hand."}
+          </EmptyState>
         ) : (
           <div className="table-box">
             <table className="table" style={{ minWidth: 820 }}>
@@ -163,7 +216,7 @@ export function Customers() {
                   <th>Status</th>
                   <th>Score</th>
                   <th>Next step</th>
-                  <th>Last contact</th>
+                  <th>{archive ? "Archived" : "Last contact"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -193,7 +246,9 @@ export function Customers() {
                         <span className="muted">—</span>
                       )}
                     </td>
-                    <td className="muted">{row.last_contact ? formatDate(row.last_contact) : "—"}</td>
+                    <td className="muted">
+                      {archive ? formatDate(row.archived_at) : row.last_contact ? formatDate(row.last_contact) : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -244,11 +299,22 @@ function AddCustomer({ onDone }: { onDone: (message?: string) => void }) {
   const [project, setProject] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [found, setFound] = useState<DuplicateMatch[] | null>(null);
 
+  /** The brief's duplicate check: say who is already there before adding a second copy. */
   async function save() {
     setBusy(true);
     setError(null);
     try {
+      if (found === null) {
+        const query = new URLSearchParams({ name, url });
+        const check = await api<{ duplicates: DuplicateMatch[] }>(`/api/companies/check?${query}`);
+        if (check.duplicates.length > 0) {
+          setFound(check.duplicates);
+          setBusy(false);
+          return;
+        }
+      }
       const card = await api<CustomerCard>("/api/companies", { method: "POST", body: { name, url, project } });
       onDone(`${customerName(card.customer)} added`);
     } catch (e) {
@@ -260,12 +326,26 @@ function AddCustomer({ onDone }: { onDone: (message?: string) => void }) {
   return (
     <Card title="Add a customer" meta="a business without a website is a lead for a new one">
       {error && <Banner kind="error">{error}</Banner>}
+      {found && found.length > 0 && (
+        <Banner kind={found.some((row) => row.do_not_contact) ? "error" : "warn"}>
+          You have approached this business already:{" "}
+          {found.map((row, index) => (
+            <span key={row.id}>
+              {index > 0 && ", "}
+              <Link to={`/customers/${row.id}`}>{row.name || row.domain || `#${row.id}`}</Link> — {row.status_label}
+              {row.status_at ? ` since ${formatDate(row.status_at)}` : ""}
+              {row.do_not_contact ? " · marked do not contact" : ""}
+            </span>
+          ))}
+          . Press Add again to make a second record anyway.
+        </Banner>
+      )}
       <div className="add-row">
         <Field label="Business name">
-          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={name} onChange={(e) => setName(e.target.value)} maxLength={300} />}
+          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={name} onChange={(e) => { setName(e.target.value); setFound(null); }} maxLength={300} />}
         </Field>
         <Field label="Website" hint="Leave empty for a business that has none yet.">
-          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="example.sk" />}
+          {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={url} onChange={(e) => { setUrl(e.target.value); setFound(null); }} placeholder="example.sk" />}
         </Field>
         <Field label="Project">
           {(id, describedBy) => <TextInput id={id} aria-describedby={describedBy} value={project} onChange={(e) => setProject(e.target.value)} maxLength={200} />}
@@ -273,7 +353,7 @@ function AddCustomer({ onDone }: { onDone: (message?: string) => void }) {
       </div>
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
         <Button variant="primary" loading={busy} onClick={save}>
-          Add
+          {found && found.length > 0 ? "Add anyway" : "Add"}
         </Button>
         <Button onClick={() => onDone()}>Cancel</Button>
       </div>

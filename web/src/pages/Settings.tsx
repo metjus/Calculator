@@ -1,7 +1,7 @@
 import { Eye, EyeOff, FlaskConical, Save, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Banner, Button, Card, Field, PageHeader, Select, Spinner, Tag, TextInput } from "../components/ui";
-import { api, type KeyState, type Profile, type SettingsData } from "../lib/api";
+import { api, type CrmRules, type KeyState, type Profile, type SettingsData } from "../lib/api";
 import { formatDate } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
@@ -184,6 +184,58 @@ function ProfileForm({ initial, language, onSaved }: { initial: Profile; languag
   );
 }
 
+/** How long each step of the funnel waits before the program says something (stage 8). */
+function RulesForm({ initial, onSaved }: { initial: CrmRules; onSaved: (s: SettingsData) => void }) {
+  const toast = useToast();
+  const [rules, setRules] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setRules(initial), [initial]);
+  const set = (key: keyof CrmRules) => (e: { target: { value: string } }) =>
+    setRules((current) => ({ ...current, [key]: Number(e.target.value) || 0 }));
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      onSaved(await api<SettingsData>("/api/settings/crm-rules", { method: "PUT", body: { ...rules } }));
+      toast("Rules saved");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const number = (key: keyof CrmRules, max: number) => (id: string) => (
+    <TextInput id={id} type="number" min={1} max={max} value={String(rules[key])} onChange={set(key)} />
+  );
+  return (
+    <form className="stack" onSubmit={save}>
+      <div className="form-grid">
+        <Field label="Follow up after (days)" hint="“Waiting for an answer” longer than this needs a nudge.">
+          {number("waiting_days", 120)}
+        </Field>
+        <Field label="Take the design demo down after (days)">{number("proposal_days", 365)}</Field>
+        <Field label="Move to the archive after (months)" hint="Counted from the last step of a finished customer.">
+          {number("archive_after_months", 60)}
+        </Field>
+        <Field label="Offer again after (months)" hint="How long a rejection stays fresh.">
+          {number("recontact_after_months", 120)}
+        </Field>
+        <Field label="Clear notes after (years in the archive)" hint="You are asked first; nothing is ever cleared on its own.">
+          {number("clear_notes_after_years", 20)}
+        </Field>
+      </div>
+      <div className="row">
+        <Button type="submit" variant="primary" icon={Save} loading={busy}>
+          Save rules
+        </Button>
+        <span className="muted">No customer is ever deleted automatically — the archive only moves them aside.</span>
+      </div>
+    </form>
+  );
+}
+
 /** The logo printed in the PDF header. Kept in the data folder, not in the database. */
 function LogoRow({ saved, onSaved }: { saved: boolean; onSaved: (s: SettingsData) => void }) {
   const toast = useToast();
@@ -283,6 +335,9 @@ export function Settings() {
             </Card>
             <Card title="Logo" id="logo" meta="printed in the header of the client PDF">
               <LogoRow saved={data.logo} onSaved={setData} />
+            </Card>
+            <Card title="Reminders and the archive" id="rules" meta="your own numbers behind every rule">
+              <RulesForm initial={data.crm_rules} onSaved={setData} />
             </Card>
           </div>
         </div>

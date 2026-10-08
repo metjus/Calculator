@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..archive import Rules
 from ..deps import current_user, get_db, get_keybox, get_settings
 from ..keys import SERVICES, test_key
 from ..models import ApiKey, User, Workspace
@@ -36,11 +37,22 @@ class Profile(BaseModel):
     email: str = Field(default="", max_length=320)
 
 
+class CrmRules(BaseModel):
+    """When customers move aside, when to try again and when notes are due to be cleared."""
+
+    archive_after_months: int = Field(default=3, ge=1, le=60)
+    recontact_after_months: int = Field(default=12, ge=1, le=120)
+    clear_notes_after_years: int = Field(default=2, ge=1, le=20)
+    waiting_days: int = Field(default=7, ge=1, le=120)
+    proposal_days: int = Field(default=30, ge=1, le=365)
+
+
 class SettingsOut(BaseModel):
     keys: dict[str, KeyState]
     profile: Profile
     pdf_language: str
     logo: bool = False  # a logo is saved for the PDF header
+    crm_rules: CrmRules
 
 
 class ProfileIn(Profile):
@@ -71,12 +83,22 @@ async def _settings_out(db: AsyncSession, workspace: Workspace) -> SettingsOut:
         profile=Profile(**{k: v for k, v in (workspace.profile or {}).items() if k in Profile.model_fields}),
         pdf_language=workspace.pdf_language,
         logo=bool(workspace.logo),
+        crm_rules=CrmRules(**Rules.of(workspace).to_dict()),
     )
 
 
 @router.get("", response_model=SettingsOut)
 async def read_settings(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> SettingsOut:
     return await _settings_out(db, user.workspace)
+
+
+@router.put("/crm-rules", response_model=SettingsOut)
+async def update_crm_rules(body: CrmRules, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> SettingsOut:
+    """The archive and reminder rules of the brief, each with the owner's own number."""
+    workspace = await db.get(Workspace, user.workspace_id)
+    workspace.crm_rules = body.model_dump()
+    await db.commit()
+    return await _settings_out(db, workspace)
 
 
 @router.put("/profile", response_model=SettingsOut)

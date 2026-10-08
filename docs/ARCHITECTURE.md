@@ -117,7 +117,7 @@ delay, a time budget per site, capped page/link counts, an honest
 | 5 | PDF audit (SK/CS/EN), offer page, preview, vCard QR | HTML → PDF via Playwright; texts in `texts.json` – see *Stage 5 as built* | **done** |
 | ~~6~~ | ~~Prices + “Check my prices”~~ | **dropped at the owner's request.** The per-problem price list went when the three offer prices became hand-typed, and the owner does not want the market-price check either | — |
 | 7 | CRM: customers, statuses, history, reminders, sales charts, no-website leads | see *Stage 7 as built* | **done** except the “what a website would bring you” PDF |
-| 8 | Archive, duplicates, re-contact, retention | scheduled jobs | |
+| 8 | Archive, duplicates, re-contact, retention | no scheduler: the pass runs when the list is read – see *Stage 8 as built* | **done** |
 | 9 | Polish, real-site testing, deployment | Docker, CI, EU hosting instead of PyInstaller | |
 
 ## Stage 2 as built
@@ -312,6 +312,33 @@ The sales side: where every customer stands, what happened to them, and who need
   the statistics in one response; the card is `GET/PATCH /api/companies/{id}` with
   `POST …/status`, `POST …/contacts`, `DELETE …/events/{id}`, `DELETE …/notes` and
   `DELETE …/{id}?keep_url=` (which leaves the address behind marked "do not contact").
-  `GET …/{id}/duplicates` exists but has no screen yet.
-- **Not built yet**: the "what a website would bring you" PDF for businesses with no website, and
-  the archive rules of stage 8.
+  `GET …/{id}/duplicates` backs the warning on the card.
+- **Not built yet**: the "what a website would bring you" PDF for businesses with no website.
+
+## Stage 8 as built
+
+Nobody is ever deleted automatically, and nothing written by hand is cleared without asking.
+
+- **Rules** (`api/archive.py`, `Rules`) hold the brief's five numbers - follow up after 7 days,
+  take the design demo down after 30, archive after 3 months, offer again after 12, clear notes
+  after 2 years - stored per workspace in `workspaces.crm_rules` and edited in Settings
+  (`PUT /api/settings/crm-rules`). `Rules.of(workspace)` falls back to the defaults.
+- **The pass** (`archive.run_archive`) moves `deal`, `not_interested` and `no_answer` customers
+  whose last step is older than the rule into the archive (`companies.archived_at`) and writes an
+  `archived` timeline row. It is two statements, so it runs when `GET /api/companies` is read
+  rather than needing a scheduler - a desktop program has nowhere to put one. A customer the owner
+  brought back by hand (`companies.unarchived_at`) is left alone until their status changes again,
+  so "bring back" is never undone by the next pass.
+- **The archive** is the same screen with `?archived=yes`: searchable, filterable, and every row
+  can be opened and brought back. Archived customers are out of the funnel, the charts and the
+  follow-ups, but nothing about them is changed.
+- **Re-contact**: `recontact` in the list response is every rejection older than the rule that is
+  not marked "do not contact". A deal is not a rejection, so it is never offered.
+- **Retention**: `notes_due` only *says* whose notes are due; `POST /api/companies/clear-due-notes`
+  clears them after the owner presses the button. The business, the website, the dates and the
+  audit results always stay.
+- **Duplicates**: `GET /api/companies/check?name=&url=` answers the add form before it saves, and
+  `GET …/{id}/duplicates` warns on the card. Both compare the domain and the business name.
+- **Imports**: `create_audit` leaves out businesses marked "do not contact" (`blocked`) unless the
+  request carries `allow_do_not_contact`, and names the ones already approached (`known`). The new
+  audit screen shows both and lets the user audit the blocked ones anyway.
