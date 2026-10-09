@@ -320,7 +320,17 @@ export type SearchResult = {
   place_id: string | null;
   osm_id: string | null;
   sources: ("google" | "osm")[];
-  known: { company_id: number; do_not_contact: boolean; last_audit_at: string | null } | null;
+  known: {
+    company_id: number;
+    do_not_contact: boolean;
+    last_audit_at: string | null;
+    status: CrmStatus;
+    status_label: string;
+    status_at: string | null;
+    last_contact: string | null;
+    contacts: number;
+    archived: boolean;
+  } | null;
 };
 export type SearchResponse = {
   results: SearchResult[];

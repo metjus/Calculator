@@ -71,6 +71,16 @@
       "fix": "Write a unique <title> of about 30–60 characters: main service + town + business name (e.g. 'Kaderníctvo v Trnave – Salón Lena'). Avoid generic titles like 'Home' or 'Úvod'.",
       "verify": "The new <title> appears in page/source.html after deploying and in the browser tab."
     },
+    "seo.canonical": {
+      "effort": "quick",
+      "fix": "Make the homepage's `<link rel=\"canonical\">` point at its own final URL (https + the host the site actually serves, trailing slash included), or drop the tag so the CMS stops copying a template value.",
+      "verify": "`curl -s https://<domain>/ | grep canonical` shows the homepage's own address, and Search Console reports the homepage as the canonical."
+    },
+    "seo.thin_content": {
+      "effort": "moderate",
+      "fix": "Write real body copy for the homepage: what the business does, for whom, where, and what to do next. Aim past 250 visible words, not with filler but with the questions customers actually ask.",
+      "verify": "The rendered page (not just the HTML source) carries the text; re-running the scan reports more words."
+    },
     "seo.meta_description": {
       "effort": "quick",
       "fix": "Add `<meta name=\"description\">` with about 70–160 characters describing what the business offers and where; make it read like an invitation to click.",

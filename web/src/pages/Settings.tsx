@@ -1,8 +1,9 @@
-import { Eye, EyeOff, FlaskConical, Save, Trash2, Upload } from "lucide-react";
+import { Eye, EyeOff, FlaskConical, FolderOpen, Save, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Banner, Button, Card, Field, PageHeader, Select, Spinner, Tag, TextInput } from "../components/ui";
 import { api, type CrmRules, type KeyState, type Profile, type SettingsData } from "../lib/api";
 import { formatDate } from "../lib/format";
+import { useSession } from "../lib/session";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
 
@@ -184,6 +185,66 @@ function ProfileForm({ initial, language, onSaved }: { initial: Profile; languag
   );
 }
 
+/** Where the program keeps everything, and how to point it somewhere else (desktop only).
+ *
+ * Choosing a folder never moves the data: the program is running out of that database. The
+ * new folder is used on the next start, and the owner copies the old one across if they want
+ * their audits with them — the brief's "one folder you can move to another computer".
+ */
+function DataFolder() {
+  const toast = useToast();
+  const folder = useApi<{ path: string; pending: string | null }>("/api/local/data-folder");
+  const [chosen, setChosen] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setChosen(folder.data?.pending ?? ""), [folder.data]);
+  if (folder.error || !folder.data) return folder.loading ? <Spinner /> : null;
+
+  async function act(what: "open" | "save" | "reset") {
+    setBusy(true);
+    try {
+      if (what === "open") {
+        await api("/api/local/data-folder/open", { method: "POST" });
+      } else {
+        await api("/api/local/data-folder", { method: "PUT", body: { path: what === "reset" ? "" : chosen } });
+        toast(what === "reset" ? "Back to the folder beside the program" : "The program will use the new folder after a restart");
+        void folder.reload();
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "That did not work", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pending = folder.data.pending;
+  return (
+    <div className="stack">
+      <Field label="Data folder in use" hint="Database, screenshots, PDFs and the backups made at every start.">
+        {(id) => <TextInput id={id} value={folder.data!.path} readOnly />}
+      </Field>
+      <div className="row" style={{ gap: 8 }}>
+        <Button icon={FolderOpen} loading={busy} onClick={() => act("open")}>
+          Open data folder
+        </Button>
+      </div>
+      <Field label="Use a different folder from the next start" hint="Nothing is moved. Copy the old folder there yourself to keep your audits.">
+        {(id) => <TextInput id={id} value={chosen} onChange={(e) => setChosen(e.target.value)} placeholder="D:\WebAudit\data" />}
+      </Field>
+      <div className="row" style={{ gap: 8 }}>
+        <Button variant="primary" icon={Save} loading={busy} onClick={() => act("save")} disabled={!chosen.trim()}>
+          Save location
+        </Button>
+        {pending && (
+          <Button loading={busy} onClick={() => act("reset")}>
+            Back to the default
+          </Button>
+        )}
+      </div>
+      {pending && <Banner kind="warn">After the next start the program will use {pending}.</Banner>}
+    </div>
+  );
+}
+
 /** The contact card the PDF prints, at a size a phone can actually read off the screen.
  *
  * In the report it is 36 mm and scans off paper; in the PDF preview the whole page is scaled
@@ -335,6 +396,7 @@ export function Settings() {
   const { data, setData } = settings;
   // Saving the details redraws the code, so the image is not served from the browser cache.
   const [qrVersion, setQrVersion] = useState(0);
+  const { me } = useSession();  // the Files card is the desktop program's, not a server's
 
   return (
     <>
@@ -376,6 +438,11 @@ export function Settings() {
             <Card title="Reminders and the archive" id="rules" meta="your own numbers behind every rule">
               <RulesForm initial={data.crm_rules} onSaved={setData} />
             </Card>
+            {me?.local && (
+              <Card title="Files" id="files" meta="everything the program keeps, in one folder">
+                <DataFolder />
+              </Card>
+            )}
           </div>
         </div>
       )}

@@ -18,6 +18,7 @@ import {
 import { formatDate, plural } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
+import { STATUS_COLOUR } from "./Customers";
 
 type Tab = "with" | "without";
 type Form = {
@@ -353,11 +354,21 @@ function TemplatePicker({ templates, onLoad, onDelete }: { templates: SearchTemp
   );
 }
 
+/** Where this business already stands with you — the brief wants the status and the last contact. */
 function KnownTag({ result }: { result: SearchResult }) {
-  if (!result.known) return <span className="muted">New</span>;
-  if (result.known.do_not_contact) return <Tag color="var(--danger)">Do not contact</Tag>;
+  const known = result.known;
+  if (!known) return <span className="muted">New</span>;
+  if (known.do_not_contact) return <Tag color="var(--danger)">Do not contact</Tag>;
+  const when = known.last_contact
+    ? `last contact ${formatDate(known.last_contact)}`
+    : known.last_audit_at
+      ? `audited ${formatDate(known.last_audit_at)}`
+      : null;
   return (
-    <Tag color="var(--accent)">{result.known.last_audit_at ? `In your list · audited ${formatDate(result.known.last_audit_at)}` : "In your list"}</Tag>
+    <span className="known-tag">
+      <Tag color={STATUS_COLOUR[known.status]}>{known.archived ? `${known.status_label} · archived` : known.status_label}</Tag>
+      {when && <span className="cell-sub">{when}</span>}
+    </span>
   );
 }
 
@@ -416,7 +427,19 @@ function Results({ response, params, projectName }: { response: SearchResponse; 
         const result = await api<{ leads: number }>("/api/search/to-leads", { body: { project: project || null, items } });
         toast(`${plural(result.leads, "business", "businesses")} added to Customers as “no website”`);
         const added = new Set(chosen.map((r) => r.key));
-        setResults((list) => list.map((r) => (added.has(r.key) && !r.known ? { ...r, known: { company_id: 0, do_not_contact: false, last_audit_at: null } } : r)));
+        // They are leads for a new website from this moment, so the row says so without a reload.
+        const fresh: SearchResult["known"] = {
+          company_id: 0,
+          do_not_contact: false,
+          last_audit_at: null,
+          status: "lead",
+          status_label: "Lead (no website)",
+          status_at: new Date().toISOString(),
+          last_contact: null,
+          contacts: 0,
+          archived: false,
+        };
+        setResults((list) => list.map((r) => (added.has(r.key) && !r.known ? { ...r, known: fresh } : r)));
         setSelected(new Set());
       }
     } catch (e) {

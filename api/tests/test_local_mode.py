@@ -8,6 +8,7 @@ import dataclasses
 import httpx
 from conftest import HEADERS
 
+from webaudit_api.local import LocalFolder
 from webaudit_api.main import create_app
 
 
@@ -53,4 +54,46 @@ async def test_only_loopback_host_names_are_answered(settings) -> None:
 async def test_local_endpoints_are_off_on_a_server(user_client: httpx.AsyncClient) -> None:
     assert (await user_client.get("/api/auth/local", params={"token": "anything"})).status_code == 404
     assert (await user_client.post("/api/local/quit")).status_code == 404
+    assert (await user_client.get("/api/local/data-folder")).status_code == 404
+    assert (await user_client.post("/api/local/data-folder/open")).status_code == 404
+    assert (await user_client.put("/api/local/data-folder", json={"path": "/tmp"})).status_code == 404
     assert (await user_client.get("/api/auth/me")).json()["local"] is False
+
+
+async def test_the_data_folder_can_be_opened_and_pointed_elsewhere(settings, tmp_path) -> None:
+    """Settings in the desktop app; the launcher owns the disk, the API only asks it."""
+    opened: list[bool] = []
+    chosen: list[str] = []
+    here, there = str(tmp_path / "data"), str(tmp_path / "disk-d")
+    folder = LocalFolder(
+        path=lambda: here,
+        pending=lambda: chosen[-1] if chosen else None,
+        reveal=lambda: opened.append(True),
+        choose=lambda raw: (chosen.append(raw) or raw) if raw else (chosen.clear() or ""),
+    )
+    local = dataclasses.replace(settings, local_mode=True, local_token="t")
+    app = create_app(local, start_worker=False, local_folder=folder)
+    async with app.router.lifespan_context(app), _client(app) as client:
+        await client.get("/api/auth/local", params={"token": "t"})
+
+        assert (await client.get("/api/local/data-folder")).json() == {"path": here, "pending": None}
+        assert (await client.post("/api/local/data-folder/open")).status_code == 204
+        assert opened == [True]
+
+        moved = await client.put("/api/local/data-folder", json={"path": there})
+        assert moved.json() == {"path": here, "pending": there}  # the running program keeps its own
+
+        assert (await client.put("/api/local/data-folder", json={"path": ""})).json()["pending"] is None
+
+
+async def test_a_folder_the_launcher_refuses_is_reported_not_crashed(settings) -> None:
+    def refuse(raw: str) -> str:
+        raise ValueError("That folder cannot be written to - pick another one")
+
+    folder = LocalFolder(path=lambda: "/data", pending=lambda: None, reveal=lambda: None, choose=refuse)
+    local = dataclasses.replace(settings, local_mode=True, local_token="t")
+    app = create_app(local, start_worker=False, local_folder=folder)
+    async with app.router.lifespan_context(app), _client(app) as client:
+        await client.get("/api/auth/local", params={"token": "t"})
+        refused = await client.put("/api/local/data-folder", json={"path": "C:\\Windows"})
+        assert refused.status_code == 422 and "cannot be written" in refused.text

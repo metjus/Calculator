@@ -27,7 +27,7 @@ MODERN_HOME = f"""<!doctype html>
 <meta name="description" content="Kaderníctvo v centre Trnavy. Dámske a pánske strihy, farbenie a svadobné účesy. Objednajte sa online alebo telefonicky.">
 <meta property="og:title" content="Kaderníctvo Lena Trnava"><meta property="og:description" content="Strihy a farbenie v centre Trnavy">
 <meta property="og:image" content="/img/og.jpg">
-<link rel="icon" href="/favicon.png"><link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.png"><link rel="stylesheet" href="/style.css"><link rel="canonical" href="/">
 <script type="application/ld+json">{{"@context":"https://schema.org","@type":"HairSalon","name":"Kaderníctvo Lena",
 "address":{{"@type":"PostalAddress","streetAddress":"Hlavná 12","postalCode":"917 01","addressLocality":"Trnava"}}}}</script>
 </head><body>

@@ -315,6 +315,27 @@ The sales side: where every customer stands, what happened to them, and who need
   `GET …/{id}/duplicates` backs the warning on the card.
 - **Not built yet**: the "what a website would bring you" PDF for businesses with no website.
 
+## After stage 8: closing the gaps against the brief and the competition (0.8.2)
+
+Five small things, each with a reason rather than a wishlist entry:
+
+- **`seo.canonical` and `seo.thin_content`** bring the scored checks to 45. They were the only two
+  technical-SEO checks a dedicated SEO crawler (dominer.sk, the nearest Slovak tool) had and this
+  one did not. Canonical was already collected into the inventory and the Claude Code export; now
+  a homepage canonicalised to another address fails rather than passing unnoticed. Thin content
+  counts the words on the rendered page, so text a script writes in still counts. Older audits keep
+  the scores they were given; only new scans include the two.
+- **The recommendation rule** (`pdf.recommended_option`, `scoring.json` -> `offer`) decides which of
+  the three offer options carries "I recommend": a total below 40, or an AI design score below 45,
+  means a new website rather than repairs. The brief asked for this to be configurable; it used to
+  be the middle column, always.
+- **The search list shows the CRM status and the last contact** (`search._known_companies`), not
+  only "in your list". This is where the decision of whom to audit next is made.
+- **The data folder** can be opened from Settings and pointed elsewhere for the next start
+  (`local.LocalFolder`, `files.read_pointer` / `write_pointer` / `check_data_folder`).
+- **A "last activity" filter** on the customer list, the brief's date filter, computed from the
+  last contact, else the last status change, else the day the customer was added.
+
 ## Stage 8 as built
 
 Nobody is ever deleted automatically, and nothing written by hand is cleared without asking.

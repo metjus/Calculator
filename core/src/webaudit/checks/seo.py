@@ -3,12 +3,16 @@ from __future__ import annotations
 import re
 
 from ..context import ScanContext
-from ..dom import json_ld_types, meta_content
+from ..dom import json_ld_types, meta_content, normalize_link, visible_text
 from ..models import Area, Status
 from ..redact import redact_text
 from . import check, na, result
 
 A = Area.SEO
+
+
+def _is_canonical(rel) -> bool:
+    return bool(rel) and "canonical" in rel
 
 
 @check("seo.title", A)
@@ -30,6 +34,54 @@ def title(ctx: ScanContext):
             value=value,
         )
     return result("seo.title", A, Status.PASS, f"Title has {length} characters", value=value)
+
+
+@check("seo.canonical", A)
+def canonical(ctx: ScanContext):
+    """Where the homepage tells Google its real address is.
+
+    A homepage that points the canonical somewhere else asks Google to index that page
+    instead - usually a copy-paste mistake from a template, and it costs the site its own
+    listing. No canonical at all is only a warning: Google guesses, and usually guesses right.
+    """
+    tag = ctx.dom.find("link", rel=_is_canonical) or ctx.static_dom.find("link", rel=_is_canonical)
+    href = (tag.get("href") or "").strip() if tag else ""
+    if not href:
+        return result("seo.canonical", A, Status.WARN, "Homepage has no canonical link", value=None)
+    target = normalize_link(href, ctx.final_url)
+    if not target:
+        return result("seo.canonical", A, Status.WARN, f"Canonical link cannot be read: {redact_text(href[:120])}", value=href[:120])
+    here = normalize_link(ctx.final_url, ctx.final_url)
+    value = {"canonical": redact_text(target), "page": redact_text(here or ctx.final_url)}
+    if target != here:
+        return result(
+            "seo.canonical",
+            A,
+            Status.FAIL,
+            f"Homepage points search engines to another address ({redact_text(target)})",
+            value=value,
+            evidence=[target],
+        )
+    return result("seo.canonical", A, Status.PASS, "Homepage points to itself", value=value)
+
+
+@check("seo.thin_content", A)
+def thin_content(ctx: ScanContext):
+    """How much the homepage actually says.
+
+    Counted on the rendered page when a browser ran, so text a script writes in still counts.
+    A page of pictures and three words gives Google nothing to match a search against, and
+    tells a visitor just as little.
+    """
+    body = ctx.dom.find("body") or ctx.dom
+    words = len(visible_text(body).split())
+    warn, fail = ctx.t("homepage_words_warn"), ctx.t("homepage_words_fail")
+    value = {"words": words}
+    if words < fail:
+        return result("seo.thin_content", A, Status.FAIL, f"Homepage has about {words} words of text", value=value)
+    if words < warn:
+        return result("seo.thin_content", A, Status.WARN, f"Homepage has about {words} words of text", value=value)
+    return result("seo.thin_content", A, Status.PASS, f"Homepage has about {words} words of text", value=value)
 
 
 @check("seo.meta_description", A)

@@ -1,6 +1,11 @@
 {
   "_comment": "Area weights are relative. Inside an area, each check has its own relative weight. Checks with status 'na' and areas without any evaluated check are left out and the rest is re-normalised (e.g. when the AI design review or PageSpeed is not used).",
   "status_credit": {"pass": 1.0, "warn": 0.5, "fail": 0.0},
+  "offer": {
+    "_comment": "Which of the three options on the last page is marked 'I recommend'. A website that scores badly overall, or whose design Claude rated poorly, is past repairing one problem at a time.",
+    "new_website_below_score": 40,
+    "new_website_below_design": 45
+  },
   "categories": [
     {"id": "critical", "min": 0},
     {"id": "weak", "min": 40},
@@ -43,6 +48,8 @@
       "weight": 10,
       "checks": {
         "seo.title": 3,
+        "seo.canonical": 1,
+        "seo.thin_content": 2,
         "seo.meta_description": 2,
         "seo.h1": 2,
         "seo.indexable": 4,

@@ -18,7 +18,9 @@ import json
 import logging
 import os
 import secrets
+import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -29,7 +31,19 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .files import InstanceLock, app_dir, backup_database, bundle_dir, data_dir, frozen, unblock_downloaded, web_dist
+from .files import (
+    InstanceLock,
+    app_dir,
+    backup_database,
+    bundle_dir,
+    check_data_folder,
+    data_dir,
+    frozen,
+    read_pointer,
+    unblock_downloaded,
+    web_dist,
+    write_pointer,
+)
 
 log = logging.getLogger("webaudit.desktop")
 WINDOW_SIZE = (1366, 880)
@@ -97,15 +111,47 @@ def configure_environment(folder: Path, token: str) -> None:
 # ------------------------------------------------------------------ server
 
 
+def reveal_folder(folder: Path) -> None:
+    """Open the data folder in the file manager - Explorer on Windows, the desktop's own elsewhere."""
+    folder.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        os.startfile(folder)  # noqa: S606 - a folder of ours, not user input
+        return
+    opener = "open" if sys.platform == "darwin" else "xdg-open"
+    if shutil.which(opener) is None:
+        raise ValueError(f"No file manager to open {folder}")
+    subprocess.Popen([opener, str(folder)])  # noqa: S603
+
+
+def _data_folder_controls(folder: Path):
+    """What Settings may do with the data folder: see it, open it, point the next start elsewhere."""
+    from webaudit_api.local import LocalFolder
+
+    def pending() -> str | None:
+        chosen = read_pointer()
+        return str(chosen) if chosen and chosen != folder else None
+
+    def choose(raw: str) -> str:
+        if not raw:  # back to the default beside the exe
+            write_pointer(None)
+            return ""
+        target = check_data_folder(raw)
+        write_pointer(target)
+        log.info("data folder for the next start set to %s", target)
+        return str(target)
+
+    return LocalFolder(path=lambda: str(folder), pending=pending, reveal=lambda: reveal_folder(folder), choose=choose)
+
+
 class LocalServer:
     """The FastAPI app and its worker, served by uvicorn in a background thread."""
 
-    def __init__(self, port: int, on_quit: Callable[[], None]) -> None:
+    def __init__(self, port: int, on_quit: Callable[[], None], folder: Path) -> None:
         import uvicorn
         from webaudit_api.main import create_app
 
         self.port = port
-        app = create_app(on_quit=on_quit)
+        app = create_app(on_quit=on_quit, local_folder=_data_folder_controls(folder))
         config = uvicorn.Config(
             app, host="127.0.0.1", port=port, loop="asyncio", http="h11", ws="none", lifespan="on", log_config=None, access_log=False
         )
@@ -320,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
                 except Exception:  # noqa: BLE001
                     pass
 
-        server = LocalServer(args.port or free_port(), request_quit)
+        server = LocalServer(args.port or free_port(), request_quit, folder)
         server.start()
         lock.publish(port=server.port, token=token, pid=os.getpid(), version=build_label())
         try:

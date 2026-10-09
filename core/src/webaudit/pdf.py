@@ -537,9 +537,28 @@ async def render(html: str, *, timeout: float = 60.0) -> bytes:
         await playwright.stop()
 
 
+def recommended_option(content: PdfContent, config: Config) -> int:
+    """Which of the three choices carries the “I recommend” tag.
+
+    Fixing problems one at a time stops making sense at some point: a site that scores badly
+    overall, or whose design Claude rated poorly, needs a new one. Both numbers live in
+    ``scoring.json`` so the owner can move the line without touching code.
+    """
+    rule = config.scoring.get("offer") or {}
+    total = content.result.score.total if content.result.score else None
+    if total is not None and total < rule.get("new_website_below_score", 0):
+        return 2
+    review = next((c.value for c in content.result.checks if c.id == "design_ai.review" and isinstance(c.value, dict)), None)
+    design = review.get("score") if review else None
+    if isinstance(design, int | float) and design < rule.get("new_website_below_design", 0):
+        return 2
+    return 1  # fix everything found: the usual answer
+
+
 def default_offer(content: PdfContent, config: Config, issues: list[dict[str, Any]]) -> list[OfferOption]:
     """The three choices with empty prices; the operator writes them in the preview."""
     biggest = issues[0]["label"] if issues else ""
+    pick = recommended_option(content, config)
     texts = (config.texts.get("pdf") or {}).get("offer_defaults") or {}
     entries = texts.get(content.language) or texts.get("en") or []
     options = []
@@ -550,7 +569,7 @@ def default_offer(content: PdfContent, config: Config, issues: list[dict[str, An
                 title=entry.get("title", ""),
                 price="",
                 description=description.format(problem=biggest) if "{problem}" in description else description,
-                recommended=index == 1,
+                recommended=index == pick,
             )
         )
     return options
@@ -567,6 +586,7 @@ __all__ = [
     "format_date",
     "issues_for",
     "qr_svg",
+    "recommended_option",
     "render",
     "safe_pdf_name",
     "status_of",

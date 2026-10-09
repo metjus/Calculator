@@ -12,6 +12,9 @@ from typing import Any, TextIO
 
 APP_NAME = "WebAudit"
 BACKUPS_KEPT = 10
+# Written beside the exe when the owner picks another data folder in Settings. One line, so it
+# can be read with Notepad and deleted to go back to the default.
+POINTER_FILE = "data-location.txt"
 
 
 def frozen() -> bool:
@@ -45,10 +48,54 @@ def _writable(folder: Path) -> bool:
         return False
 
 
+def pointer_file() -> Path:
+    return app_dir() / POINTER_FILE
+
+
+def read_pointer() -> Path | None:
+    """The folder the owner chose in Settings, if the file is there and readable."""
+    try:
+        text = pointer_file().read_text("utf-8").strip()
+    except OSError:
+        return None
+    return Path(text).expanduser().resolve() if text else None
+
+
+def write_pointer(folder: Path | None) -> None:
+    """Point the next start at ``folder``; ``None`` goes back to the default beside the exe."""
+    path = pointer_file()
+    if folder is None:
+        path.unlink(missing_ok=True)
+        return
+    path.write_text(str(folder), "utf-8")
+
+
+def check_data_folder(raw: str) -> Path:
+    """Make sure a folder the owner typed can actually hold the data. Raises ValueError."""
+    if not raw.strip():
+        raise ValueError("Give a folder path")
+    folder = Path(raw).expanduser()
+    if not folder.is_absolute():
+        raise ValueError("Use the full path, for example D:\\WebAudit\\data")
+    folder = folder.resolve()
+    if folder.exists() and not folder.is_dir():
+        raise ValueError("That path is a file, not a folder")
+    if not _writable(folder):
+        raise ValueError("That folder cannot be written to - pick another one")
+    return folder
+
+
 def data_dir(override: str | None = None) -> Path:
-    """``data`` next to the exe; if that folder is read-only (e.g. Program Files), the user's app data."""
+    """``data`` next to the exe; if that folder is read-only (e.g. Program Files), the user's app data.
+
+    A folder chosen in Settings (``data-location.txt``) wins over the default, and ``--data``
+    wins over everything.
+    """
     if override:
         return Path(override).resolve()
+    chosen = read_pointer()
+    if chosen and _writable(chosen):
+        return chosen
     beside = app_dir() / "data"
     if _writable(beside):
         return beside

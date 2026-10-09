@@ -12,10 +12,12 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from . import __version__
 from .db import create_schema, make_engine, make_sessionmaker
 from .deps import current_user
+from .local import LocalFolder
 from .models import User
 from .routers import audits, auth, companies, dashboard, search, settings
 from .security import CSRF_HEADER, CSRF_VALUE, KeyBox
@@ -27,14 +29,23 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 
+class DataFolderIn(BaseModel):
+    path: str = Field(max_length=4096)
+
+
 def create_app(
     app_settings: Settings | None = None,
     *,
     start_worker: bool | None = None,
     worker_kwargs: dict | None = None,
     on_quit: Callable[[], None] | None = None,
+    local_folder: LocalFolder | None = None,
 ) -> FastAPI:
-    """``on_quit`` is called by ``POST /api/local/quit`` in the desktop app (local mode)."""
+    """``on_quit`` is called by ``POST /api/local/quit`` in the desktop app (local mode).
+
+    ``local_folder`` is the same app's data folder: the launcher passes it so the owner can
+    open it and choose a different one from Settings. Both are desktop-only.
+    """
     app_settings = app_settings or Settings()
 
     @contextlib.asynccontextmanager
@@ -100,6 +111,35 @@ def create_app(
             raise HTTPException(404, "Not Found")
         asyncio.get_running_loop().call_later(0.3, on_quit)  # let the response reach the window first
         return Response(status_code=204)
+
+    def _folder() -> LocalFolder:
+        if not app_settings.local_mode or local_folder is None:
+            raise HTTPException(404, "Not Found")
+        return local_folder
+
+    @app.get("/api/local/data-folder", include_in_schema=False)
+    async def read_data_folder(user: User = Depends(current_user)) -> dict[str, str | None]:
+        """Where the program keeps the database, screenshots, PDFs and backups."""
+        folder = _folder()
+        return {"path": folder.path(), "pending": folder.pending()}
+
+    @app.post("/api/local/data-folder/open", status_code=204, include_in_schema=False)
+    async def open_data_folder(user: User = Depends(current_user)) -> Response:
+        try:
+            _folder().reveal()
+        except (OSError, ValueError) as exc:
+            raise HTTPException(422, str(exc) or "The folder could not be opened") from exc
+        return Response(status_code=204)
+
+    @app.put("/api/local/data-folder", include_in_schema=False)
+    async def choose_data_folder(body: DataFolderIn, user: User = Depends(current_user)) -> dict[str, str | None]:
+        """Point the next start at another folder. Nothing is moved; the data stays where it is."""
+        folder = _folder()
+        try:
+            stored = folder.choose(body.path.strip())
+        except (OSError, ValueError) as exc:
+            raise HTTPException(422, str(exc) or "That folder cannot be used") from exc
+        return {"path": folder.path(), "pending": stored or None}
 
     _mount_web(app)
     return app

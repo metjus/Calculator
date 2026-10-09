@@ -5,6 +5,10 @@ from __future__ import annotations
 import pytest
 
 from webaudit import Config
+from webaudit.checks import seo
+from webaudit.context import ScanContext
+from webaudit.dom import parse
+from webaudit.fetch import Fetch
 from webaudit.inputs import normalize_url, parse_csv_text
 from webaudit.models import Area, Category, CheckResult, Status
 from webaudit.netguard import BlockedTarget, NetGuard, is_public_ip
@@ -237,3 +241,40 @@ def test_map_links_match_host_not_substring() -> None:
         assert is_map_url(url, rules), url
     for url in ("https://elsewhere.com/x", "https://www.google.com/search?q=maps", "https://notmapy.cz/", "https://google.evil.com/maps"):
         assert not is_map_url(url, rules), url
+
+
+def _seo_ctx(html: str, url: str = "https://salon.sk/") -> ScanContext:
+    """The smallest context the SEO checks need: a fetched page and its DOM."""
+    dom = parse(html)
+    return ScanContext(
+        config=Config.load(),
+        url=url,
+        home=Fetch(url=url, final_url=url, status=200, _text=html),
+        dom=dom,
+        static_dom=dom,
+        robots=Robots.allow_all(),
+    )
+
+
+def test_canonical_pointing_away_is_a_failure_but_a_missing_one_is_not() -> None:
+    """A homepage canonicalised to another page asks Google to list that page instead."""
+    away = seo.canonical(_seo_ctx('<html><head><link rel="canonical" href="https://inde.sk/vitajte"></head><body></body></html>'))
+    assert away.status is Status.FAIL and "inde.sk" in away.summary and away.evidence
+
+    home = seo.canonical(_seo_ctx('<html><head><link rel="canonical" href="/"></head><body></body></html>'))
+    assert home.status is Status.PASS
+
+    assert seo.canonical(_seo_ctx("<html><head></head><body></body></html>")).status is Status.WARN
+
+
+def test_thin_content_counts_the_words_a_visitor_can_read() -> None:
+    config = Config.load()
+    warn, fail = config.scanner["thresholds"]["homepage_words_warn"], config.scanner["thresholds"]["homepage_words_fail"]
+
+    def page(words: int) -> str:
+        return f"<html><body><p>{' '.join(['slovo'] * words)}</p><script>var ignored = 'this is not read';</script></body></html>"
+
+    assert seo.thin_content(_seo_ctx(page(fail - 10))).status is Status.FAIL
+    assert seo.thin_content(_seo_ctx(page(warn - 10))).status is Status.WARN
+    full = seo.thin_content(_seo_ctx(page(warn + 50)))
+    assert full.status is Status.PASS and full.value["words"] >= warn

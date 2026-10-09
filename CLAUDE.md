@@ -77,7 +77,9 @@ Invariants that span files:
 - **The client PDF carries nothing external.** `pdf.build_html` inlines fonts, screenshots, the logo and the QR code as `data:` URIs and
   `pdf.render` aborts every network request, so an export reaches no host and works offline; `test_nothing_in_the_report_comes_from_the_network`
   must keep passing. Its wording lives in `defaults/texts.json` under `pdf` (SK/CS/EN). Prices are typed by hand in the preview and never
-  itemised in the PDF - there is no per-problem price list by design. The preview screen draws the same HTML in a sandboxed iframe
+  itemised in the PDF - there is no per-problem price list by design. Which of the three options is recommended comes from
+  `pdf.recommended_option` and the `offer` block in `scoring.json` (a bad total score or a poor AI design score means a new website),
+  not from a fixed column. The preview screen draws the same HTML in a sandboxed iframe
   (`POST …/pdf-html`), so it redraws in milliseconds; only the export launches Chromium. It never *navigates* to a `blob:`
   URL - the desktop shell opens external links in Windows, which has no app for one. The QR code is an inline SVG with a
   `viewBox` and the standard four-module quiet zone; without the `viewBox` a CSS size crops the symbol instead of scaling it. At 36 mm it
@@ -113,6 +115,7 @@ Invariants that span files:
 - Google Places results: store only `place_id`. OSM names may be stored; show the ODbL attribution wherever OSM data appears.
 - External services in tests: `app.state.search_transport` (httpx `MockTransport`); never call real Google/OSM from tests.
 - **Local mode** (`WEBAUDIT_LOCAL_MODE`, desktop only): `/api/auth/local?token=` signs in the single local user with the launcher's per-launch token; the CSRF middleware also rejects any Host other than `127.0.0.1`/`localhost`; `POST /api/local/quit` calls the launcher's `on_quit`. Never enable it on a server.
+- **The data folder** is the launcher's, not the API's: it passes a `local.LocalFolder` (path, pending, reveal, choose) and `GET/PUT /api/local/data-folder` plus `POST …/open` only pass requests to it. Choosing a folder never moves data - the program is running out of that database; it writes `data-location.txt` beside the exe and the next start reads it (`--data` still wins). Both are 404 on a server.
 - UI code uses the token roles in `web/src/styles/tokens.css` and components in `web/src/components/ui.tsx`; no raw hex in components (Leaflet shapes are the documented exception).
 
 ## Tests

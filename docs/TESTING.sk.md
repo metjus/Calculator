@@ -114,6 +114,23 @@ rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`
       sa normálne auditujú.
 - [ ] Ak je medzi webmi niekto, koho si už oslovil, dole vyskočí hláška „… you have already approached".
 
+## Verzia 0.8.2 — drobnosti po etape 8
+
+- [ ] **Dve nové kontroly.** Preskenuj web a v detaile hľadaj *Canonical* a *Tenký obsah*.
+      Staré audity majú pôvodné skóre, nové kontroly sa prejavia až pri novom skene.
+- [ ] **Odporúčaná možnosť v ponuke.** Pri webe so skóre pod 40 (alebo so zlým AI posudkom dizajnu)
+      má byť zvýraznená tretia možnosť „Nový web", nie prostredná. Pri lepšom webe prostredná.
+- [ ] **Vyhľadávanie firiem** — pri firme, ktorú už máš v zákazníkoch, má byť vidieť jej **stav**
+      (napr. „Waiting for an answer") a pod ním dátum posledného kontaktu, nie len „In your list".
+- [ ] **Nastavenia → Files** (len v programe, nie v prehliadači): tlačidlo **Open data folder**
+      otvorí priečinok v Prieskumníkovi.
+- [ ] Do poľa pod tým zadaj inú cestu (napr. `D:\WebAudit\data`) a ulož → objaví sa upozornenie,
+      že program ju použije po reštarte. **Dáta sa nepresunú** — ak chceš staré audity, prekopíruj
+      priečinok ručne. Tlačidlom *Back to the default* sa vrátiš späť.
+- [ ] Zadaj nezmyselnú cestu (relatívnu alebo priečinok bez práv) → má to odmietnuť zrozumiteľne.
+- [ ] **Customers → filter „Any time"** — prepni na *Active in the last 30 days*; zákazníci, s ktorými
+      sa dlho nič nedialo, zo zoznamu zmiznú. Kombinuje sa s ostatnými filtrami.
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.

@@ -61,11 +61,16 @@ async def test_static_scan_modern_vs_legacy(sites, trusted_transport) -> None:
         "seo.favicon",
         "seo.structured_data",
         "seo.indexable",
+        "seo.canonical",
     ):
         assert m[check_id] is Status.PASS, check_id
     assert leg["seo.title"] is Status.WARN  # generic "Home"
     assert leg["seo.meta_description"] is Status.FAIL and leg["seo.h1"] is Status.FAIL
     assert leg["seo.structured_data"] is Status.FAIL and leg["seo.sitemap"] is Status.FAIL
+    assert leg["seo.canonical"] is Status.WARN  # no canonical at all is a warning, not a failure
+    # Both fixtures are short pages, so both are thin; the check still has to say how short.
+    thin = next(c for c in legacy.checks if c.id == "seo.thin_content")
+    assert leg["seo.thin_content"] is Status.FAIL and thin.value["words"] > 0
 
     # Trust
     assert m["trust.contact"] is Status.PASS and m["trust.clickable_phone"] is Status.PASS

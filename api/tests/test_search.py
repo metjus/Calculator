@@ -299,3 +299,26 @@ async def test_map_tiles_are_fetched_once_and_cached(app, settings, user_client:
     assert (await user_client.get("/api/search/tiles/19/0/0")).status_code == 404
     async with make_client() as anonymous:
         assert (await anonymous.get("/api/search/tiles/11/1123/711")).status_code == 401
+
+
+async def test_a_business_already_in_the_crm_shows_its_status_and_last_contact(user_client: httpx.AsyncClient) -> None:
+    """The brief: the search list says where a business already stands, not just that you have it.
+
+    This is the decision point for whom to audit next, so "Waiting for an answer since March"
+    has to be visible without opening the customer card.
+    """
+    body = {"country": "sk", "area": TRNAVA, "radius_km": 10, "category_id": "hair_salon"}
+    first = (await user_client.post("/api/search/run", json=body)).json()
+    lena = next(r for r in first["results"] if r["website"] and "lena" in r["website"])
+    assert lena["known"] is None  # nothing on them yet
+
+    added = (await user_client.post("/api/companies", json={"name": lena["name"], "url": lena["website"]})).json()
+    cid = added["customer"]["id"]
+    await user_client.post(f"/api/companies/{cid}/contacts", json={"way": "phone", "note": "Zavolal som."})
+    await user_client.post(f"/api/companies/{cid}/status", json={"status": "waiting"})
+
+    again = (await user_client.post("/api/search/run", json=body)).json()
+    known = next(r for r in again["results"] if r["key"] == lena["key"])["known"]
+    assert known["status"] == "waiting" and known["status_label"] == "Waiting for an answer"
+    assert known["last_contact"] and known["contacts"] == 1 and known["archived"] is False
+    assert known["do_not_contact"] is False and known["company_id"] == cid

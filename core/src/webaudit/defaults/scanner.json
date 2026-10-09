@@ -36,6 +36,8 @@
     "title_max_chars": 70,
     "meta_description_min_chars": 50,
     "meta_description_max_chars": 170,
+    "homepage_words_warn": 250,
+    "homepage_words_fail": 120,
     "generic_titles": ["home", "domov", "úvod", "uvod", "úvodní stránka", "hlavná stránka", "untitled", "nová stránka", "new page", "index", "welcome", "vitajte", "vítejte"],
     "mobile_min_font_px": 12,
     "mobile_legible_ratio_pass": 0.9,

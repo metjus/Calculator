@@ -135,7 +135,7 @@ def test_a_new_build_replaces_an_older_running_copy(tmp_path, monkeypatch) -> No
         old_lock.release()
         stopped.set()
 
-    old = app.LocalServer(app.free_port(), quit_old)
+    old = app.LocalServer(app.free_port(), quit_old, data)
     old.start()
     old_lock.publish(port=old.port, token="old-token", pid=1)  # an older build: no version recorded
     try:
@@ -161,3 +161,25 @@ def test_unblock_removes_the_downloaded_mark(tmp_path) -> None:
     Path(f"{dll}:Zone.Identifier").write_text("[ZoneTransfer]\nZoneId=3\n")  # what Explorer adds when unzipping
     assert files.unblock_downloaded(tmp_path) == 1
     assert not Path(f"{dll}:Zone.Identifier").exists() and dll.read_bytes() == b"MZ"
+
+
+def test_the_data_folder_can_be_pointed_somewhere_else(tmp_path, monkeypatch) -> None:
+    """Settings writes a one-line pointer beside the exe; the next start reads it."""
+    monkeypatch.setattr(files, "app_dir", lambda: tmp_path)
+    assert files.read_pointer() is None
+    assert files.data_dir() == tmp_path / "data"  # the default, beside the program
+
+    elsewhere = tmp_path / "disk-d" / "WebAudit"
+    stored = files.check_data_folder(str(elsewhere))
+    files.write_pointer(stored)
+    assert files.read_pointer() == elsewhere.resolve()
+    assert files.data_dir() == elsewhere.resolve()
+    assert files.data_dir(str(tmp_path / "explicit")) == (tmp_path / "explicit").resolve()  # --data still wins
+
+    files.write_pointer(None)
+    assert files.read_pointer() is None and files.data_dir() == tmp_path / "data"
+
+    with pytest.raises(ValueError):
+        files.check_data_folder("relative/path")
+    with pytest.raises(ValueError):
+        files.check_data_folder("   ")

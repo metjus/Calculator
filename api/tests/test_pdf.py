@@ -46,7 +46,9 @@ async def test_preview_offers_everything_the_operator_then_edits(user_client: ht
     assert body["language"] == "sk" and body["languages"] == ["sk", "cs", "en"]
     assert body["issues"] and all({"id", "label", "problem", "impact", "solution"} <= set(i) for i in body["issues"])
     assert "Čo je zle" not in body["issues"][0]["problem"]  # the part headings are the PDF's, not the text's
-    assert len(body["offer"]) == 3 and body["offer"][1]["recommended"] is True
+    # The legacy fixture scores far below the rule's line, so a new website is the recommendation
+    # rather than the usual middle option (core pdf.recommended_option, scoring.json -> offer).
+    assert len(body["offer"]) == 3 and [o["recommended"] for o in body["offer"]] == [False, False, True]
     assert all(option["price"] == "" for option in body["offer"])  # prices are typed by hand
     assert body["profile"]["name"] == "Matúš Š." and body["has_logo"] is False
     assert body["file_name"].endswith(".pdf") and body["summary"]

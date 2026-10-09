@@ -8,7 +8,7 @@ from datetime import date
 from conftest import needs_browser
 
 from webaudit import Config, Status
-from webaudit.models import Area, CheckResult, Issue, ScanResult, SiteState
+from webaudit.models import Area, Category, CheckResult, Issue, ScanResult, Score, SiteState
 from webaudit.pdf import (
     QR_QUIET_ZONE,
     QR_SIZE_MM,
@@ -21,6 +21,7 @@ from webaudit.pdf import (
     format_date,
     issues_for,
     qr_svg,
+    recommended_option,
     render,
     safe_pdf_name,
     status_of,
@@ -164,3 +165,27 @@ async def test_rendering_produces_a_pdf() -> None:
     item.offer = default_offer(item, config, issues_for(item, config))
     pdf = await render(build_html(item, config))
     assert pdf.startswith(b"%PDF-") and len(pdf) > 20_000
+
+
+def test_the_recommended_option_follows_the_rule_not_the_middle_column() -> None:
+    """A site past repairing gets “new website” recommended; the numbers are in scoring.json."""
+    config = Config.load()
+    weak = content()
+    weak.result.score = Score(total=28, category=Category.CRITICAL, areas=[])
+    assert recommended_option(weak, config) == 2
+
+    fine = content()
+    fine.result.score = Score(total=72, category=Category.OK, areas=[])
+    assert recommended_option(fine, config) == 1
+
+    # A decent score with a design Claude rated poorly still means a new website.
+    ugly = content()
+    ugly.result.score = Score(total=72, category=Category.OK, areas=[])
+    ugly.result.checks = [
+        *ugly.result.checks,
+        CheckResult(id="design_ai.review", area=Area.DESIGN_AI, status=Status.FAIL, value={"score": 20}),
+    ]
+    assert recommended_option(ugly, config) == 2
+
+    options = default_offer(ugly, config, issues_for(ugly, config))
+    assert [o.recommended for o in options] == [False, False, True]

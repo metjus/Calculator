@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bars, Donut, Legend } from "../components/charts";
 import { Banner, Button, Card, EmptyState, Field, PageHeader, Spinner, Tag, TextInput } from "../components/ui";
-import { api, type CrmStatus, type CustomerCard, type CustomerList, type DuplicateMatch } from "../lib/api";
+import { api, type CrmStatus, type CustomerCard, type CustomerList, type CustomerRow, type DuplicateMatch } from "../lib/api";
 import { formatDate, plural } from "../lib/format";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
@@ -33,19 +33,25 @@ export function Customers() {
   const [project, setProject] = useState("");
   const [website, setWebsite] = useState<"" | "yes" | "no">("");
   const [text, setText] = useState("");
+  const [since, setSince] = useState("");  // days; "" = any time
   const [adding, setAdding] = useState(false);
 
   const data = list.data;
   const rows = useMemo(() => {
     const needle = text.trim().toLowerCase();
+    // "Last activity" is the most recent thing that happened: a contact, a status change, or
+    // the day they were added — which is what you filter on when deciding whom to pick up.
+    const cutoff = since ? Date.now() - Number(since) * 86_400_000 : null;
+    const activity = (row: CustomerRow) => Date.parse(row.last_contact ?? row.status_at ?? row.created_at);
     return (data?.rows ?? []).filter(
       (row) =>
         (!status || row.status === status) &&
         (!project || row.project === project) &&
         (!website || (website === "yes") === row.has_website) &&
+        (cutoff === null || activity(row) >= cutoff) &&
         (!needle || [row.name, row.domain, row.project].some((value) => value?.toLowerCase().includes(needle))),
     );
-  }, [data, status, project, website, text]);
+  }, [data, status, project, website, since, text]);
 
   if (list.error) return <Banner kind="error">{list.error.message}</Banner>;
   if (!data) return list.loading ? <Spinner /> : null;
@@ -193,6 +199,13 @@ export function Customers() {
                 {name}
               </option>
             ))}
+          </select>
+          <select className="select" value={since} onChange={(e) => setSince(e.target.value)} aria-label="Last activity">
+            <option value="">Any time</option>
+            <option value="7">Active in the last 7 days</option>
+            <option value="30">Active in the last 30 days</option>
+            <option value="90">Active in the last 90 days</option>
+            <option value="365">Active in the last year</option>
           </select>
           <select className="select" value={website} onChange={(e) => setWebsite(e.target.value as "" | "yes" | "no")} aria-label="Website">
             <option value="">With and without a website</option>

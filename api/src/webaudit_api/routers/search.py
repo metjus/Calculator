@@ -20,6 +20,7 @@ from webaudit.inputs import SiteInput, normalize_url
 from .. import __version__
 from ..audit_service import AuditRequest, create_audit
 from ..companies import get_or_create_company
+from ..crm import STATUSES, contact_summary, default_status
 from ..deps import current_user, get_db, get_keybox, get_settings
 from ..keys import get_key
 from ..models import ApiUsage, Audit, AuditSite, Company, SearchTemplate, User
@@ -170,12 +171,23 @@ async def _known_companies(db: AsyncSession, workspace_id: int, results: list[di
             .group_by(AuditSite.company_id)
         )
         latest = {company_id: finished for company_id, finished, _ in rows}
+    # Where each one stands in the CRM, so the list says "already contacted" rather than only
+    # "in your list" - the decision of whom to audit next is made right here.
+    contacts = await contact_summary(db, [c.id for c in companies])
     known: dict[str, dict[str, Any]] = {}
     for company in companies:
+        state = company.status or default_status(company, False)
+        last_contact, contact_count = contacts.get(company.id, (None, 0))
         info = {
             "company_id": company.id,
             "do_not_contact": company.do_not_contact,
             "last_audit_at": latest.get(company.id).isoformat() if latest.get(company.id) else None,
+            "status": state,
+            "status_label": STATUSES[state]["label"],
+            "status_at": company.status_at.isoformat() if company.status_at else None,
+            "last_contact": last_contact.isoformat() if last_contact else None,
+            "contacts": contact_count,
+            "archived": bool(company.archived_at),
         }
         for key in (company.domain, company.place_id, company.osm_id):
             if key:
