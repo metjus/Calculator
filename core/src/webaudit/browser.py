@@ -13,6 +13,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .config import Config
 from .context import RenderData
@@ -258,6 +259,32 @@ BANNER_DETECT_JS = r"""
 }
 """
 
+# When the bar cannot be closed without leaving the page, take it off the screen instead: the
+# client is shown a photograph of the website, not of somebody's consent dialog.
+BANNER_HIDE_JS = r"""
+(markers) => {
+  const area = innerWidth * innerHeight;
+  if (!document.body) return 0;
+  let hidden = 0;
+  for (const el of Array.from(document.body.getElementsByTagName('*'))) {
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width * r.height < area * 0.02 || r.bottom <= 0 || r.top >= innerHeight) continue;
+    const text = (el.innerText || '').toLowerCase();
+    if (!markers.some((m) => text.includes(m))) continue;
+    el.style.setProperty('display', 'none', 'important');
+    hidden += 1;
+  }
+  if (hidden) {
+    for (const el of [document.documentElement, document.body]) {
+      el.style.setProperty('overflow', 'auto', 'important');  // bars often freeze the page behind them
+    }
+  }
+  return hidden;
+}
+"""
+
 BANNER_BUTTON_JS = r"""
 (phrases) => {
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -267,9 +294,12 @@ BANNER_BUTTON_JS = r"""
       const label = norm(el.innerText || el.value || el.getAttribute('aria-label'));
       if (!label || label.length > 40) continue;
       if (label !== phrase && !label.startsWith(phrase + ' ')) continue;
-      if (el.tagName === 'A') {
-        const href = (el.getAttribute('href') || '').trim();
-        if (href && !href.startsWith('#') && !href.startsWith('javascript')) continue;
+      const anchor = el.closest('a');
+      if (anchor) {
+        // A consent button wrapped in a link takes the browser somewhere else; the page we were
+        // asked to measure is the one that has to stay on screen.
+        const href = (anchor.getAttribute('href') || '').trim();
+        if (href && !href.startsWith('#') && !/^javascript:/i.test(href)) continue;
       }
       const r = el.getBoundingClientRect();
       const cs = getComputedStyle(el);
@@ -288,6 +318,20 @@ CONTRAST_JS, TAP_TARGETS_JS, LAYOUT_JS, IMAGES_JS = (
 
 IGNORED_CONSOLE = ("ERR_BLOCKED_BY_CLIENT", "net::ERR_ABORTED")
 CONSENT_FRAME_HINTS = ("consent", "cmp", "privacy", "cookie", "gdpr")
+# ... but a few frames only look like one: youtube-nocookie.com embeds are videos, and reCAPTCHA
+# is not a cookie bar. Clicking inside those is how a scan ends up somewhere else entirely.
+NOT_CONSENT_FRAMES = ("nocookie", "recaptcha")
+
+
+def is_consent_frame(url: str) -> bool:
+    low = url.lower()
+    return not any(skip in low for skip in NOT_CONSENT_FRAMES) and any(hint in low for hint in CONSENT_FRAME_HINTS)
+
+
+def same_page(before: str, after: str) -> bool:
+    """Whether the browser is still on the page we loaded (a query or a fragment may change)."""
+    a, b = urlsplit(before), urlsplit(after)
+    return (a.netloc, a.path.rstrip("/")) == (b.netloc, b.path.rstrip("/"))
 
 
 class BrowserUnavailable(Exception):
@@ -394,23 +438,29 @@ class Browser:
         page.on("pageerror", lambda exc: data.console_errors.append(str(exc).splitlines()[0][:300]))
         page.on("requestfinished", lambda req: requests.append(req) if len(requests) < 400 else None)
         try:
-            try:
-                await page.goto(url, wait_until="load", timeout=self.config.scanner["timeouts"]["navigation_s"] * 1000)
-            except Exception as exc:  # noqa: BLE001
-                if "Timeout" not in exc.__class__.__name__:
-                    data.error = str(exc).splitlines()[0][:200]
-                    return data
-                log("warn", "page kept loading past the time limit; measuring what loaded")
-            try:
-                await page.wait_for_load_state("networkidle", timeout=self.cfg["network_idle_wait_ms"])
-            except Exception:  # noqa: BLE001 - busy pages never go idle; that's fine
-                pass
+            data.error = await self._load(page, url, log)
+            if data.error:
+                return data
             data.title = await page.title()
             if detect_in_title(data.title):
                 data.ok = True
                 data.cookie = {"challenge": True}
                 return data
+            here = page.url
             data.cookie = await self._dismiss_cookie_banner(page, log)
+            if not same_page(here, page.url):
+                # Something behind the consent button navigated away. Everything below measures the
+                # page and takes its screenshot, so come back first - otherwise the report would
+                # describe whatever page the click landed on.
+                log("warn", f"closing the cookie bar left the page for {page.url}; going back")
+                data.cookie.update(dismissed=False, left_page=True)
+                data.error = await self._load(page, here, log)
+                if data.error:
+                    return data
+            if data.cookie.get("detected") and not data.cookie.get("dismissed"):
+                data.cookie["hidden"] = await self._hide_cookie_banner(page)
+                if data.cookie["hidden"]:
+                    log("ok", "cookie bar hidden for the screenshot")
             fonts_args = {
                 "mobile": mobile,
                 "minPx": thresholds["mobile_min_font_px"],
@@ -445,6 +495,20 @@ class Browser:
         finally:
             await context.close()
 
+    async def _load(self, page: Any, url: str, log: Callable[[str, str], None]) -> str | None:
+        """Navigate and let the page settle. Returns a reason to give up, or ``None``."""
+        try:
+            await page.goto(url, wait_until="load", timeout=self.config.scanner["timeouts"]["navigation_s"] * 1000)
+        except Exception as exc:  # noqa: BLE001
+            if "Timeout" not in exc.__class__.__name__:
+                return str(exc).splitlines()[0][:200]
+            log("warn", "page kept loading past the time limit; measuring what loaded")
+        try:
+            await page.wait_for_load_state("networkidle", timeout=self.cfg["network_idle_wait_ms"])
+        except Exception:  # noqa: BLE001 - busy pages never go idle; that's fine
+            pass
+        return None
+
     async def _dismiss_cookie_banner(self, page: Any, log: Callable[[str, str], None]) -> dict[str, Any]:
         cfg = self.config.cookie_banners
         markers = [m.lower() for m in cfg["banner_text_markers"]]
@@ -452,19 +516,34 @@ class Browser:
         method = await self._click_consent(page, cfg)
         if method is None:
             for frame in page.frames[1:]:
-                if any(h in frame.url.lower() for h in CONSENT_FRAME_HINTS):
+                if is_consent_frame(frame.url):
                     method = await self._click_consent(frame, cfg)
                     if method:
                         break
         if method:
             await page.wait_for_timeout(700)
-            still_there = bool(await page.evaluate(BANNER_DETECT_JS, markers))
+            try:  # the click may have started a navigation; know where we are before measuring
+                await page.wait_for_load_state("load", timeout=self.cfg["network_idle_wait_ms"])
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                still_there = bool(await page.evaluate(BANNER_DETECT_JS, markers))
+            except Exception:  # noqa: BLE001 - a navigation threw the context away; the caller checks the URL
+                still_there = True
             if still_there:
                 log("warn", f"cookie bar still visible after clicking ({method})")
             return {"detected": True, "dismissed": not still_there, "method": method}
         if detected:
             log("warn", "cookie bar detected but could not be closed")
         return {"detected": detected, "dismissed": False, "method": None}
+
+    async def _hide_cookie_banner(self, page: Any) -> bool:
+        """Last resort for a bar we must not click: hide it so it is not in the screenshot."""
+        markers = [m.lower() for m in self.config.cookie_banners["banner_text_markers"]]
+        try:
+            return bool(await page.evaluate(BANNER_HIDE_JS, markers))
+        except Exception:  # noqa: BLE001 - a screenshot with the bar in it is still a screenshot
+            return False
 
     @staticmethod
     async def _click_consent(target: Any, cfg: dict[str, Any]) -> str | None:

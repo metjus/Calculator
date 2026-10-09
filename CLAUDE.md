@@ -94,6 +94,10 @@ Invariants that span files:
   `viewBox` and the standard four-module quiet zone; without the `viewBox` a CSS size crops the symbol instead of scaling it. At 36 mm it
   scans off paper, but the preview shrinks the page to the column, which puts the code at ~75 px - unreadable by design, so
   `GET /api/settings/vcard-qr` shows the same code in Settings at a size a phone can read off the screen (measured: it decodes from ~160 px).
+- **What we measure is the page we were asked to measure.** The browser closes the cookie bar before measuring, so the
+  consent click must never navigate: buttons inside links are skipped, frames that only look like consent dialogs
+  (`youtube-nocookie`, reCAPTCHA) are left alone, and after the click `browser.same_page` compares the URL - if the page
+  moved, the scanner goes back before taking any metric or screenshot. A bar that cannot be closed is hidden with CSS.
 - **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails. Any page text that is kept (the `inventory`, page snapshots, title values) goes through `redact.redact_text` / `redact_html` first. The e2e and export tests assert this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.

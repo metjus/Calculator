@@ -174,6 +174,18 @@ Nepotrebuje API kľúč ani kredity; stačí predplatné claude.ai.
       („… matched no website here") a zvyšok použije.
 - [ ] Pretiahni tam nesprávny súbor → odmietne to s číslom riadku a dôvodom.
 
+## Verzia 0.8.6 — screenshot vždy patrí kontrolovanej stránke
+
+- [ ] Spusti audit **wow-forever.sk** znova. V detaile webu má byť na **oboch** obrázkoch
+      (Desktop aj Mobile) tá istá stránka — nie Google ani nič iné.
+- [ ] V logu auditu sa môže objaviť „closing the cookie bar left the page … going back"
+      alebo „cookie bar hidden for the screenshot" — to je v poriadku, znamená to, že sa program
+      vrátil späť na kontrolovanú stránku.
+- [ ] Skóre a oblasti (Dizajn, Technika, Obsah) sa po novom skene môžu zmeniť — predtým sa merala
+      stránka, na ktorú klik odišiel.
+- [ ] Skús ešte zopár webov s cookie lištou: lišta má byť zatvorená (ako doteraz), a keď sa zatvoriť
+      nedá, nemá byť na screenshote vidno.
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.

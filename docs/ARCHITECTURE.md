@@ -390,6 +390,28 @@ normally bills to the Claude key can also be made by hand in the Claude app:
 - `components/ui.tsx` gained a `DropZone`: the new-audit CSV and the review CSV are both files that
   come straight out of a download folder or a chat window, where a file picker is a detour.
 
+## The screenshot always belongs to the audited page (0.8.6)
+
+A scan found a website whose desktop screenshot was Google’s homepage. Before measuring anything,
+the browser closes the cookie bar; on that site the “accept” button took the browser somewhere
+else, and everything after it – the metrics, the page snapshot and both screenshots – described
+the page the click had led to.
+
+The rule now is that the consent click may never decide what we measure:
+
+* a button wrapped in a link (`el.closest('a')` with a real `href`) is never pressed – closing a
+  bar is not worth leaving the page for;
+* frames that only look like a consent dialog are left alone (`youtube-nocookie.com` embeds
+  contain the word “cookie”, reCAPTCHA matched nothing useful either);
+* after the click the URL is compared with the one we loaded (`same_page`: host and path, so a
+  `?cookies=accepted` reload still counts as the same page). If it moved, the scanner logs it,
+  goes back and measures there;
+* a bar that could not be closed is then hidden with CSS (`BANNER_HIDE_JS`), so the client’s
+  report shows the website rather than somebody’s consent dialog.
+
+`test_a_cookie_bar_that_navigates_away_does_not_decide_what_we_measure` drives both kinds of trap
+(the link-wrapped button and one that navigates from JavaScript) against fixture pages.
+
 ## Stage 8 as built
 
 Nobody is ever deleted automatically, and nothing written by hand is cleared without asking.

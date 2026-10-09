@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from webaudit import Config
+from webaudit.browser import is_consent_frame, same_page
 from webaudit.checks import seo
 from webaudit.context import ScanContext
 from webaudit.dom import parse
@@ -278,3 +279,19 @@ def test_thin_content_counts_the_words_a_visitor_can_read() -> None:
     assert seo.thin_content(_seo_ctx(page(warn - 10))).status is Status.WARN
     full = seo.thin_content(_seo_ctx(page(warn + 50)))
     assert full.status is Status.PASS and full.value["words"] >= warn
+
+
+def test_a_video_embed_is_not_a_cookie_bar() -> None:
+    """``youtube-nocookie.com`` contains the word cookie; clicking inside it is how a scan wanders off."""
+    assert is_consent_frame("https://consent.cookiebot.com/dialog?id=1")
+    assert is_consent_frame("https://cdn.cookielaw.org/consent/banner.html")
+    assert not is_consent_frame("https://www.youtube-nocookie.com/embed/abc123")
+    assert not is_consent_frame("https://www.google.com/recaptcha/api2/anchor?k=1")
+    assert not is_consent_frame("https://www.google.com/maps/embed?pb=!1m18")
+
+
+def test_the_same_page_after_a_consent_click() -> None:
+    assert same_page("https://a.sk/", "https://a.sk")  # a trailing slash is not a different page
+    assert same_page("https://a.sk/kontakt", "https://a.sk/kontakt?cookies=accepted#top")
+    assert not same_page("https://a.sk/", "https://www.google.com/")
+    assert not same_page("https://a.sk/", "https://a.sk/ochrana-osobnych-udajov")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 from conftest import needs_browser
@@ -181,3 +182,25 @@ async def test_a_browser_that_does_not_start_in_time_is_skipped(monkeypatch, sit
         result = await scanner.scan(sites.urls["legacy"])
     assert result.state is SiteState.OK and result.score is not None  # scored from the static checks
     assert any("browser checks skipped" in entry.message for entry in result.log)
+
+
+@needs_browser
+async def test_a_cookie_bar_that_navigates_away_does_not_decide_what_we_measure(sites, trusted_transport, tmp_path) -> None:
+    """Whatever the consent button does, the screenshot and the metrics belong to the audited page."""
+    config = Config.load(overrides=FAST)
+    base = sites.urls["modern"].rstrip("/")
+    async with Scanner(config, allow_private=True, transport=trusted_transport) as scanner:
+        if scanner.browser is None:
+            pytest.skip(f"browser unavailable: {scanner.browser_error}")
+        link = await scanner.browser.render(f"{base}/cookie-link", mobile=False, screenshot_path=tmp_path / "link.jpg")
+        jump = await scanner.browser.render(f"{base}/cookie-jump", mobile=False, screenshot_path=tmp_path / "jump.jpg")
+
+    # A button wrapped in a link is never pressed: closing the bar is not worth leaving the page for.
+    assert link.ok and link.cookie["detected"] and link.cookie["dismissed"] is False and link.cookie["method"] is None
+    # One that navigates from JavaScript cannot be seen in advance, so the scanner comes back.
+    assert jump.ok and jump.cookie.get("left_page") is True and jump.cookie["dismissed"] is False
+    for data in (link, jump):
+        assert data.cookie["hidden"] is True  # taken off the screen instead of clicked away
+        assert 'id="trap"' in data.html  # measured this page, not the one the click led to
+        assert "Služby" not in (data.html or "")
+        assert Path(data.screenshot).stat().st_size > 1000

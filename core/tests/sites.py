@@ -92,6 +92,21 @@ fetch("{internal}/fetch", {mode: "no-cors"}).catch(() => {});
 </script>
 </body></html>"""
 
+# Two cookie bars that take the browser somewhere else when the "accept" button is pressed: one
+# wraps the button in a link, the other navigates from JavaScript. The scanner has to end up back
+# on the page it was asked to measure either way, or the screenshot shows a stranger's website.
+COOKIE_TRAP = """<!doctype html><html lang="sk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Cookie trap</title></head>
+<body><h1 id="trap">Toto je stránka, ktorú meriame</h1>
+<p>Obsah stránky, ktorý má byť na screenshote.</p>
+<div style="position:fixed;bottom:0;left:0;right:0;height:140px;background:#eee;padding:20px">
+<p>Používame súbory cookie na meranie návštevnosti.</p>
+{button}
+</div></body></html>"""
+
+COOKIE_LINK = COOKIE_TRAP.format(button='<a href="/sluzby"><button type="button">Prijať všetko</button></a>')
+COOKIE_JUMP = COOKIE_TRAP.format(button="""<button type="button" onclick="location.href='/sluzby'">Prijať všetko</button>""")
+
 # path -> (status, headers, body)
 Route = tuple[int, dict[str, str], bytes | str]
 
@@ -104,6 +119,8 @@ SITES: dict[str, dict[str, Route]] = {
         "/kontakt": (200, HTML, MODERN_SUBPAGE),
         "/sluzby": (200, HTML, MODERN_SUBPAGE.replace("Kontakt", "Služby")),
         "/cennik": (200, HTML, MODERN_SUBPAGE.replace("Kontakt", "Cenník")),
+        "/cookie-link": (200, HTML, COOKIE_LINK),
+        "/cookie-jump": (200, HTML, COOKIE_JUMP),
         "/robots.txt": (200, {"Content-Type": "text/plain"}, "User-agent: *\nDisallow: /admin/\nSitemap: {origin}/sitemap.xml\n"),
         "/sitemap.xml": (200, {"Content-Type": "application/xml"}, SITEMAP),
         "/favicon.png": (200, {"Content-Type": "image/png"}, b"\x89PNG\r\n\x1a\n"),
