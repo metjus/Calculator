@@ -14,7 +14,18 @@ from typing import Any
 
 from webaudit import Config
 from webaudit.models import ScanResult
-from webaudit.pdf import OfferOption, PdfContent, Profile, build_html, default_offer, default_summary, issues_for, render, safe_pdf_name
+from webaudit.pdf import (
+    DETAIL_LEVELS,
+    OfferOption,
+    PdfContent,
+    Profile,
+    build_html,
+    default_offer,
+    default_summary,
+    issues_for,
+    render,
+    safe_pdf_name,
+)
 
 from .models import AuditSite, Workspace
 from .settings import Settings
@@ -96,6 +107,8 @@ def preview(content: PdfContent, config: Config, workspace: Workspace) -> dict[s
     return {
         "language": content.language,
         "languages": list(LANGUAGES),
+        "detail": workspace.pdf_detail or content.detail,
+        "details": list(DETAIL_LEVELS),
         "client_name": content.client_name,
         "summary": default_summary(content, config, len(issues)),
         "issues": issues,

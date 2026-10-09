@@ -2,11 +2,19 @@ import { ArrowDown, ArrowUp, Check, FileDown, Maximize2, Minimize2, Settings2 } 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Banner, Button, Card, Field, PageHeader, Spinner, TextArea, TextInput } from "../components/ui";
-import { apiRaw, type OfferOption, type PdfChoices, type PdfPreview } from "../lib/api";
+import { apiRaw, type OfferOption, type PdfChoices, type PdfDetail, type PdfPreview } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { useApi } from "../lib/useApi";
 
 const LANGUAGE_NAME: Record<string, string> = { sk: "Slovenčina", cs: "Čeština", en: "English" };
+/** How much of each finding the client is handed. The report always says what is wrong and what
+ *  it costs them; how much of the repair goes with it is a decision per client. */
+const DETAIL_NAME: Record<PdfDetail, string> = { full: "With the fix", no_fix: "Without the fix", short: "Top 3 only" };
+const DETAIL_HINT: Record<PdfDetail, string> = {
+  full: "Every problem with what to do about it — for a client who already hired you.",
+  no_fix: "Every problem and what it costs them, but not how to repair it.",
+  short: "The three worst explained; the rest named only, with an invitation to talk.",
+};
 const PAGE_WIDTH = 794; // 210 mm at 96 dpi — the width the report is laid out in
 const PAGE_HEIGHT = 1123;
 const REDRAW_MS = 400; // the preview is HTML, so a redraw costs milliseconds
@@ -14,13 +22,21 @@ const REDRAW_MS = 400; // the preview is HTML, so a redraw costs milliseconds
 type Row = { id: string; included: boolean };
 
 /** Everything the operator decides before the export; the preview redraws from exactly this. */
-function choicesOf(preview: PdfPreview, rows: Row[], clientName: string, summary: string, offer: OfferOption[]): PdfChoices {
+function choicesOf(
+  preview: PdfPreview,
+  rows: Row[],
+  clientName: string,
+  summary: string,
+  offer: OfferOption[],
+  detail: PdfDetail,
+): PdfChoices {
   return {
     language: preview.language,
     client_name: clientName.trim() || null,
     summary,
     include: rows.filter((row) => row.included).map((row) => row.id),
     offer,
+    detail,
   };
 }
 
@@ -35,6 +51,7 @@ export function PdfReport() {
   const [clientName, setClientName] = useState("");
   const [summary, setSummary] = useState("");
   const [offer, setOffer] = useState<OfferOption[]>([]);
+  const [detail, setDetail] = useState<PdfDetail>("no_fix");
   const [exporting, setExporting] = useState(false);
 
   const data = preview.data;
@@ -44,10 +61,11 @@ export function PdfReport() {
     setClientName(data.client_name ?? "");
     setSummary(data.summary);
     setOffer(data.offer);
+    setDetail(data.detail);
   }, [data]);
 
   const labels = useMemo(() => new Map((data?.issues ?? []).map((issue) => [issue.id, issue])), [data]);
-  const choices = data ? choicesOf(data, rows, clientName, summary, offer) : null;
+  const choices = data ? choicesOf(data, rows, clientName, summary, offer, detail) : null;
   const included = rows.filter((row) => row.included).length;
 
   function move(index: number, by: number) {
@@ -131,6 +149,26 @@ export function PdfReport() {
                     ))}
                   </div>
                 </div>
+                <div>
+                  <span className="pdf-label">How much to show</span>
+                  <div className="seg" role="group" aria-label="How much of each finding to show">
+                    {data.details.map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        className={level === detail ? "on" : ""}
+                        aria-pressed={level === detail}
+                        title={DETAIL_HINT[level]}
+                        onClick={() => setDetail(level)}
+                      >
+                        {DETAIL_NAME[level]}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="field-hint">{DETAIL_HINT[detail]}</span>
+                </div>
+              </div>
+              <div className="pdf-row">
                 <Field label="Business name on the cover" hint="Printed in the header. Left empty, the domain is used.">
                   {(id, describedBy) => (
                     <TextInput

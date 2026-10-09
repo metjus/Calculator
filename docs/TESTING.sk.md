@@ -149,6 +149,17 @@ Nepotrebuje API kľúč ani kredity; stačí predplatné claude.ai.
 - [ ] Pretiahni tam nesprávny súbor (napr. obyčajný text) → má to odmietnuť zrozumiteľnou vetou.
 - [ ] Ak Claude obalí CSV do bloku s ```, má to fungovať tiež.
 
+## Verzia 0.8.4 — koľko toho PDF prezradí
+
+- [ ] **Client PDF → How much to show** s tromi možnosťami. Predvolená je **Without the fix**.
+- [ ] *With the fix* — pri každom probléme sú tri časti vrátane „Riešenie".
+- [ ] *Without the fix* — „Riešenie" zmizne, „Čo je zle" aj „Čo to spôsobuje" zostanú.
+      Problémy sú stále všetky, nič sa nezatají.
+- [ ] *Top 3 only* — prvé tri problémy s popisom, zvyšok len vymenovaný v dvoch stĺpcoch
+      pod čiarou, plus veta „Týchto N vecí sme pri kontrole tiež našli…". PDF je kratšie.
+- [ ] Náhľad sa pri prepnutí prekreslí do pol sekundy a mení sa aj počet strán.
+- [ ] Po exporte sa voľba zapamätá — pri ďalšom PDF je predvolená tá, ktorú si použil naposledy.
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.

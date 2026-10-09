@@ -80,7 +80,9 @@ Invariants that span files:
 - **The client PDF carries nothing external.** `pdf.build_html` inlines fonts, screenshots, the logo and the QR code as `data:` URIs and
   `pdf.render` aborts every network request, so an export reaches no host and works offline; `test_nothing_in_the_report_comes_from_the_network`
   must keep passing. Its wording lives in `defaults/texts.json` under `pdf` (SK/CS/EN). Prices are typed by hand in the preview and never
-  itemised in the PDF - there is no per-problem price list by design. Which of the three options is recommended comes from
+  itemised in the PDF - there is no per-problem price list by design. How much of each finding the client sees is `PdfContent.detail` (`pdf.DETAIL_LEVELS`): `full` prints the three parts the brief asks for,
+  `no_fix` (the default) drops the solution line, `short` explains the worst three and names the rest. It is a choice per export, kept on
+  `workspaces.pdf_detail`; the report never hides *that* a problem exists, only how to repair it. Which of the three options is recommended comes from
   `pdf.recommended_option` and the `offer` block in `scoring.json` (a bad total score or a poor AI design score means a new website),
   not from a fixed column. The preview screen draws the same HTML in a sandboxed iframe
   (`POST …/pdf-html`), so it redraws in milliseconds; only the export launches Chromium. It never *navigates* to a `blob:`

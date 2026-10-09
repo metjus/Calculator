@@ -143,9 +143,13 @@ export async function apiRaw(path: string, body: Json): Promise<Response> {
 /** Stage 5: the client PDF — what the preview screen edits before the export. */
 export type PdfIssue = { id: string; status: "warn" | "fail"; label: string; problem: string; impact: string; solution: string };
 export type OfferOption = { title: string; price: string; description: string; recommended: boolean };
+export type PdfDetail = "full" | "no_fix" | "short";
 export type PdfPreview = {
   language: string;
   languages: string[];
+  /** How much of each finding the client sees. */
+  detail: PdfDetail;
+  details: PdfDetail[];
   client_name: string | null;
   summary: string;
   issues: PdfIssue[];
@@ -162,6 +166,7 @@ export type PdfChoices = {
   summary: string;
   include: string[];
   offer: OfferOption[];
+  detail: PdfDetail;
 };
 
 /** Stage 7: the CRM. Statuses, the timeline and the follow-up list. */

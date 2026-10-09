@@ -29,6 +29,8 @@ class Workspace(Base):
     # "My details for the PDF": name, company id (IČO), phone, e-mail – the user's own, not leads'.
     profile: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     pdf_language: Mapped[str] = mapped_column(String(2), default="sk")
+    # How much of each finding the client PDF spells out: full | no_fix | short (core pdf.DETAIL_LEVELS).
+    pdf_detail: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # The operator's logo for the PDF header (file name inside <data>/branding) and the three
     # offer options last used, so the prices they typed come back prefilled next time.
     logo: Mapped[str | None] = mapped_column(String(64), nullable=True)

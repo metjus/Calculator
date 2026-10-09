@@ -158,3 +158,25 @@ async def test_the_logo_is_saved_for_the_pdf_header(user_client: httpx.AsyncClie
     assert removed.status_code == 200 and removed.json()["logo"] is False
     assert not (settings.data_dir / "branding" / "logo.png").exists()
     assert (await user_client.get("/api/settings/logo")).status_code == 404
+
+
+async def test_the_detail_level_is_remembered_between_exports(user_client: httpx.AsyncClient, app, sites) -> None:
+    """How much the client is handed is the operator's call, and it should not reset every time."""
+    audit_id, site_id = await scored_site(user_client, app, sites)
+    base = f"/api/audits/{audit_id}/sites/{site_id}"
+    preview = (await user_client.get(f"{base}/pdf-preview")).json()
+    assert preview["detail"] == "no_fix"  # the safe default: the damage, not the repair
+    assert preview["details"] == ["full", "no_fix", "short"]
+
+    body = {"language": "sk", "include": [row["id"] for row in preview["issues"]], "offer": preview["offer"]}
+    hidden = (await user_client.post(f"{base}/pdf-html", json=body)).text
+    shown = (await user_client.post(f"{base}/pdf-html", json={**body, "detail": "full"})).text
+    solution = preview["issues"][0]["solution"]
+    assert solution and solution in shown and solution not in hidden
+    assert preview["issues"][0]["problem"] in hidden  # what is wrong still goes in
+
+    assert (await user_client.post(f"{base}/pdf-html", json={**body, "detail": "nope"})).status_code == 422
+
+    exported = await user_client.post(f"{base}/pdf", json={**body, "detail": "short"})
+    assert exported.status_code == 200
+    assert (await user_client.get(f"{base}/pdf-preview")).json()["detail"] == "short"  # comes back next time

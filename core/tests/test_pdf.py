@@ -12,6 +12,7 @@ from webaudit.models import Area, Category, CheckResult, Issue, ScanResult, Scor
 from webaudit.pdf import (
     QR_QUIET_ZONE,
     QR_SIZE_MM,
+    SHORT_IN_FULL,
     STATUS_COLOURS,
     OfferOption,
     PdfContent,
@@ -57,8 +58,10 @@ def content(**kwargs) -> PdfContent:
 
 
 def test_report_has_every_problem_in_three_parts() -> None:
+    """The brief's structure, at the detail level that prints all of it."""
     config = Config.load()
     item = content(client_name="Kaderníctvo Lena", screenshots={"desktop": JPEG, "mobile": JPEG})
+    item.detail = "full"
     item.offer = default_offer(item, config, issues_for(item, config))
     item.offer[0].price = "180 €"
     html = build_html(item, config)
@@ -189,3 +192,55 @@ def test_the_recommended_option_follows_the_rule_not_the_middle_column() -> None
 
     options = default_offer(ugly, config, issues_for(ugly, config))
     assert [o.recommended for o in options] == [False, False, True]
+
+
+def test_how_much_of_each_finding_the_client_sees_is_a_choice() -> None:
+    """The report always names the problem and what it costs; the repair is the operator's to give.
+
+    The point is not to hide that something is wrong — it is to not hand over a work order a
+    cheaper developer could price straight from the PDF.
+    """
+    config = Config.load()
+    item = content(client_name="Kaderníctvo Lena", screenshots={"desktop": JPEG, "mobile": JPEG})
+    item.offer = default_offer(item, config, issues_for(item, config))
+    issues = issues_for(item, config)
+    assert len(issues) >= 3
+    solution = issues[0]["solution"]
+    assert solution  # there is one to withhold
+
+    item.detail = "full"
+    full = build_html(item, config)
+    assert solution in full and issues[0]["problem"] in full
+
+    item.detail = "no_fix"
+    hidden = build_html(item, config)
+    assert solution not in hidden
+    assert issues[0]["problem"] in hidden and issues[0]["impact"] in hidden  # the damage still shows
+    assert all(issue["label"] in hidden for issue in issues)  # nothing is swept under the carpet
+
+
+def test_the_short_report_names_the_rest_without_explaining_them() -> None:
+    config = Config.load()
+    item = content(screenshots={"desktop": JPEG})
+    item.offer = default_offer(item, config, issues_for(item, config))
+    issues = issues_for(item, config)
+    item.detail = "short"
+    html = build_html(item, config)
+
+    for issue in issues:
+        assert issue["label"] in html  # every finding is still named
+    for issue in issues[:SHORT_IN_FULL]:
+        assert issue["problem"] in html
+    for issue in issues[SHORT_IN_FULL:]:
+        assert issue["problem"] not in html  # named, not explained
+        assert issue["solution"] not in html
+    if len(issues) > SHORT_IN_FULL:
+        assert str(len(issues) - SHORT_IN_FULL) in html  # "we also found these N things"
+
+
+def test_an_unknown_detail_level_falls_back_to_the_safe_one() -> None:
+    config = Config.load()
+    item = content(screenshots={"desktop": JPEG})
+    item.offer = default_offer(item, config, issues_for(item, config))
+    item.detail = "nonsense"
+    assert issues_for(item, config)[0]["solution"] not in build_html(item, config)

@@ -26,6 +26,10 @@ from .report import area_label, category_label, issue_text
 
 FONT_WEIGHTS = (300, 400, 500, 600)
 ISSUES_PER_PAGE = 3  # cards are tall; three per page leaves room for the longest texts
+# How much of each finding the client sees. The report always names what is wrong and what it
+# costs them; how much of the repair it hands over is the operator's decision, per client.
+DETAIL_LEVELS = ("full", "no_fix", "short")
+SHORT_IN_FULL = 3  # "short": this many findings in detail, the rest named only
 MAX_LOGO_HEIGHT_MM = 14
 QR_QUIET_ZONE = 4  # the standard quiet zone; scanners need it to find the symbol
 QR_ERROR = "m"  # 15% error correction: enough for a printed page, and keeps the symbol small
@@ -63,6 +67,7 @@ class PdfContent:
     client_name: str | None = None
     summary: str | None = None
     include: list[str] | None = None  # check ids to print, in order; None = every issue
+    detail: str = "no_fix"  # see DETAIL_LEVELS
     offer: list[OfferOption] = field(default_factory=list)
     competitors: list[dict[str, Any]] = field(default_factory=list)
     screenshots: dict[str, bytes] = field(default_factory=dict)
@@ -336,6 +341,11 @@ h3{font-weight:600;font-size:11.5pt}
 .box .price{font-weight:300;font-size:21pt;margin:2mm 0 3mm}
 .box .d2{font-size:9pt;color:#57524a;flex:1}
 .note{margin-top:6mm;font-size:10pt;color:#57524a}
+.more{margin-top:7mm;border-top:1px solid #e2ddd4;padding-top:5mm}
+.more .mini{font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:#716b63;margin-bottom:3mm}
+.more ul{margin:0;padding-left:5mm;columns:2;column-gap:8mm;font-size:10pt}
+.more li{margin-bottom:1.5mm;break-inside:avoid}
+.more p{margin:4mm 0 0;font-size:9.5pt;color:#57524a}
 .contact{position:absolute;left:18mm;right:18mm;bottom:18mm;border-top:1px solid #e2ddd4;padding-top:5mm;display:flex;gap:6mm;align-items:center}
 .contact svg{width:__QRMM__mm;height:__QRMM__mm;display:block;flex:0 0 auto}
 .who{position:absolute;left:18mm;right:18mm;bottom:14mm;border-top:1px solid #e2ddd4;padding-top:4mm;display:flex;
@@ -416,20 +426,37 @@ def build_html(content: PdfContent, config: Config) -> str:
     )
 
     # ---------------------------------------------------------- findings
-    for start in range(0, len(issues), ISSUES_PER_PAGE):
-        chunk = issues[start : start + ISSUES_PER_PAGE]
-        cards = "".join(
+    detail = content.detail if content.detail in DETAIL_LEVELS else "no_fix"
+    detailed = issues[:SHORT_IN_FULL] if detail == "short" else issues
+    named_only = issues[SHORT_IN_FULL:] if detail == "short" else []
+
+    def card(number: int, item: dict[str, Any]) -> str:
+        parts = f'<div class="part"><b>{_esc(label("part_problem"))}</b>{_esc(item["problem"])}</div>'
+        if item["impact"]:
+            parts += f'<div class="part"><b>{_esc(label("part_impact"))}</b>{_esc(item["impact"])}</div>'
+        if detail == "full" and item["solution"]:
+            parts += f'<div class="part"><b>{_esc(label("part_solution"))}</b>{_esc(item["solution"])}</div>'
+        return (
             f'<div class="card {"warn" if item["status"] == "warn" else ""}"><div class="n">{number}</div><div>'
             f'<h3>{_esc(item["label"])}<span class="chip">'
-            f"{_esc(label('chip_minor' if item['status'] == 'warn' else 'chip_major'))}</span></h3>"
-            f'<div class="part"><b>{_esc(label("part_problem"))}</b>{_esc(item["problem"])}</div>'
-            + (f'<div class="part"><b>{_esc(label("part_impact"))}</b>{_esc(item["impact"])}</div>' if item["impact"] else "")
-            + (f'<div class="part"><b>{_esc(label("part_solution"))}</b>{_esc(item["solution"])}</div>' if item["solution"] else "")
-            + "</div></div>"
-            for number, item in enumerate(chunk, start + 1)
+            f"{_esc(label('chip_minor' if item['status'] == 'warn' else 'chip_major'))}</span></h3>{parts}</div></div>"
         )
+
+    for start in range(0, len(detailed), ISSUES_PER_PAGE):
+        chunk = detailed[start : start + ISSUES_PER_PAGE]
+        cards = "".join(card(number, item) for number, item in enumerate(chunk, start + 1))
         head = f'<div class="eyebrow">{_esc(label("findings_eyebrow"))}</div><h2>{_esc(label("findings_title"))}</h2>' if start == 0 else ""
-        pages.append(f'<section class="page"><div class="pad">{head}<div class="cards">{cards}</div></div>{foot(len(pages) + 1)}</section>')
+        more = ""
+        if named_only and start + ISSUES_PER_PAGE >= len(detailed):
+            # The rest are named, not explained: the owner sees there is more without being handed a list to shop around.
+            rows = "".join(f"<li>{_esc(item['label'])}</li>" for item in named_only)
+            more = (
+                f'<div class="more"><div class="mini">{_esc(label("more_title"))}</div><ul>{rows}</ul>'
+                f"<p>{_esc(label('more_note').format(count=len(named_only)))}</p></div>"
+            )
+        pages.append(
+            f'<section class="page"><div class="pad">{head}<div class="cards">{cards}</div>{more}</div>{foot(len(pages) + 1)}</section>'
+        )
     if not issues:
         pages.append(
             f'<section class="page"><div class="pad"><div class="eyebrow">{_esc(label("findings_eyebrow"))}</div>'
@@ -584,6 +611,7 @@ __all__ = [
     "default_offer",
     "default_summary",
     "format_date",
+    "DETAIL_LEVELS",
     "issues_for",
     "qr_svg",
     "recommended_option",

@@ -336,6 +336,24 @@ Five small things, each with a reason rather than a wishlist entry:
 - **A "last activity" filter** on the customer list, the brief's date filter, computed from the
   last contact, else the last status change, else the day the customer was added.
 
+## How much the client PDF gives away (0.8.4)
+
+The report is a sales document as much as a diagnosis, and a full list of problems with their
+fixes is something a client can price with a cheaper developer. The owner decides per export,
+and the choice is kept on `workspaces.pdf_detail`:
+
+- `full` - the three parts the brief describes: what is wrong, what it causes, how to fix it.
+  For a client who has already hired you.
+- `no_fix` (the default) - every ticked finding still named and explained, with what it costs
+  the business, but without the repair.
+- `short` - the worst three explained, the rest named only, closed with a line offering to go
+  through them in person (`texts.json` -> `pdf.more_note`).
+
+What no level does is pretend the website is fine: every finding that is ticked is at least
+named at every level, and the texts stay hedged and free of invented numbers. The detailed
+repair steps were never in the client PDF anyway - those live in `devnotes.json` and only reach
+the Claude Code export, which is the owner's.
+
 ## The design review without an API key (0.8.3)
 
 A claude.ai subscription is not an API key, and the owner has one. So the review that `ai_review.py`

@@ -270,6 +270,12 @@
     "part_problem": {"sk": "Čo je zle", "cs": "Co je špatně", "en": "What is wrong"},
     "part_impact": {"sk": "Čo to spôsobuje", "cs": "Co to způsobuje", "en": "What it may cause"},
     "part_solution": {"sk": "Riešenie", "cs": "Řešení", "en": "How to fix it"},
+    "more_title": {"sk": "Ďalšie nálezy", "cs": "Další nálezy", "en": "Other findings"},
+    "more_note": {
+      "sk": "Týchto {count} vecí sme pri kontrole tiež našli. Radi vám ich prejdeme osobne a vysvetlíme, čo znamenajú práve pre váš web.",
+      "cs": "Těchto {count} věcí jsme při kontrole také našli. Rádi vám je projdeme osobně a vysvětlíme, co znamenají právě pro váš web.",
+      "en": "We also found these {count} things during the check. We are happy to go through them with you and explain what they mean for your website."
+    },
     "chip_major": {"sk": "Dôležité", "cs": "Důležité", "en": "Important"},
     "chip_minor": {"sk": "Drobnosť", "cs": "Drobnost", "en": "Minor"},
     "tile_mobile": {"sk": "Mobil", "cs": "Mobil", "en": "Mobile"},

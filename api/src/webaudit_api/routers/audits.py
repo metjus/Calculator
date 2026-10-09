@@ -108,6 +108,7 @@ class PdfIn(BaseModel):
     summary: str | None = Field(default=None, max_length=1500)
     include: list[str] | None = None  # check ids, in the order they should be printed
     offer: list[OfferIn] = Field(default_factory=list, max_length=3)
+    detail: str = Field(default="no_fix", pattern="^(full|no_fix|short)$")  # how much of each finding the client sees
 
 
 class CreateFromText(BaseModel):
@@ -426,6 +427,7 @@ def _apply(content: Any, body: PdfIn, config: Config, workspace: Workspace) -> N
         content.summary = body.summary.strip()
     if body.include is not None:
         content.include = body.include
+    content.detail = body.detail
     content.offer = (
         [OfferOption(**option.model_dump()) for option in body.offer] if body.offer else offer_defaults(content, config, workspace)
     )
@@ -473,6 +475,7 @@ async def pdf_export(
     pdf = await make_pdf(content, _CONFIG)
     workspace.pdf_offer = [vars(option) for option in content.offer]
     workspace.pdf_language = content.language
+    workspace.pdf_detail = content.detail  # the choice comes back on the next export
     await db.commit()
     name = safe_pdf_name(content)
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
