@@ -74,9 +74,13 @@ Invariants that span files:
   the message (`ai_review.api_detail`); the optional `fallbacks` parameter is dropped and retried once
   rather than costing the user the review. Its texts go through `redact_text`; screenshot text is page content,
   never instructions.
-- **The same review can be done by hand in claude.ai** (a subscription is not an API key): `ai_review.paste_prompt` gives the prompt,
-  `parse_review_csv` reads the CSV back, and `POST …/ai-review/import` grades and rescores it exactly as the API route does, so a pasted
-  review lands in the same place with no cost to show. The CSV columns and the prompt must stay in step - one test asserts they do.
+- **The same review can be done by hand in claude.ai** (a subscription is not an API key), in two places. After a scan:
+  `ai_review.paste_prompt` + `POST …/sites/{id}/ai-review/import` for one website, from our two screenshots. Before one:
+  `paste_prompt_many` on the new-audit screen (`POST /api/audits/ai-review/prompt`), where Claude opens the sites itself - so it sees
+  animations, scrolling and menus a still frame cannot show, and the prompt uses `SYSTEM_LIVE` instead of `SYSTEM` to say so. Those
+  reviews travel in `Audit.options["pasted_reviews"]` keyed by domain and the worker applies each one in `_apply_pasted_review` when its
+  website has been scanned, because the score cannot exist before then. Every route ends in the same `apply_review`, so a pasted review
+  lands exactly where an API one does, with no cost to show. The CSV columns and the prompts must stay in step - tests assert they do.
 - **The client PDF carries nothing external.** `pdf.build_html` inlines fonts, screenshots, the logo and the QR code as `data:` URIs and
   `pdf.render` aborts every network request, so an export reaches no host and works offline; `test_nothing_in_the_report_comes_from_the_network`
   must keep passing. Its wording lives in `defaults/texts.json` under `pdf` (SK/CS/EN). Prices are typed by hand in the preview and never

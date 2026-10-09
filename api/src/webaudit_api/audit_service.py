@@ -67,6 +67,25 @@ class CreatedAudit:
 APPROACHED = ("contacted", "waiting", "interested", "proposal", "deal", "not_interested", "no_answer")
 
 
+def match_reviews(rows: list[tuple[str, dict | None]], urls: list[str]) -> tuple[dict[str, dict], list[str]]:
+    """Tie each pasted review to a website of this audit by its bare host.
+
+    Returns the reviews keyed by domain and the addresses in the file that match nothing here -
+    usually a typo or a review copied from another list, and worth saying out loud.
+    """
+    wanted = {domain_of(url) for url in urls if domain_of(url)}
+    matched: dict[str, dict] = {}
+    unknown: list[str] = []
+    for site, review in rows:
+        domain = domain_of(site if "//" in site else f"https://{site}")
+        if domain and domain in wanted:
+            if review is not None:
+                matched[domain] = review
+        else:
+            unknown.append(site[:120])
+    return matched, unknown
+
+
 async def create_audit(
     db: AsyncSession,
     workspace_id: int,
@@ -75,6 +94,7 @@ async def create_audit(
     max_urls: int,
     options: dict | None = None,
     allow_do_not_contact: bool = False,
+    reviews: dict[str, dict] | None = None,
 ) -> CreatedAudit:
     seen: set[str] = set()
     sites: list[AuditSite] = []
@@ -112,7 +132,11 @@ async def create_audit(
 
     audit = None
     if sites:
-        audit = Audit(workspace_id=workspace_id, project=request.project, total=len(sites), options=options or {}, sites=sites)
+        # Reviews pasted from the Claude app wait here until each website has been scanned.
+        settings = dict(options or {})
+        if reviews:
+            settings["pasted_reviews"] = {domain: review for domain, review in reviews.items() if domain in seen}
+        audit = Audit(workspace_id=workspace_id, project=request.project, total=len(sites), options=settings, sites=sites)
         db.add(audit)
         await db.flush()
         db.add(AuditEvent(audit_id=audit.id, kind="queued", data={"total": len(sites)}))

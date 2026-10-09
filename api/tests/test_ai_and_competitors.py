@@ -196,3 +196,42 @@ async def test_a_review_done_in_the_claude_app_is_pasted_back_in(user_client: ht
 
     nonsense = (await user_client.post(f"{base}/ai-review/import", files={"file": ("x.csv", b"hello", "text/csv")})).json()
     assert "no row with the review" in str(nonsense["detail"])  # a readable reason, not a stack trace
+
+
+async def test_a_review_written_before_the_audit_is_applied_when_the_website_is_scanned(user_client: httpx.AsyncClient, app, sites) -> None:
+    """The owner reviews the websites in the Claude app first, then starts the audit.
+
+    Claude opens the sites itself there, so it sees animations and behaviour a screenshot cannot
+    show. The score cannot exist until the scan has run, so the review waits with the audit and
+    is applied the moment its website is done.
+    """
+    legacy, modern = sites.urls["legacy"], sites.urls["modern"]
+    prompt = (await user_client.post("/api/audits/ai-review/prompt", json={"urls": f"{legacy}\n{modern}"})).json()
+    assert prompt["websites"] == [legacy, modern] and prompt["columns"][0] == "website"
+    assert "website,score,looks_dated,verdict,strengths,weaknesses" in prompt["prompt"]
+    assert "Open each website" in prompt["prompt"] and "animations" in prompt["prompt"]  # not just a still frame
+    assert (await user_client.post("/api/audits/ai-review/prompt", json={"urls": "   "})).status_code == 422
+
+    answer = (
+        "website,score,looks_dated,verdict,strengths,weaknesses\n"
+        f'{legacy},34,yes,"Web pôsobí zastarano.",Rýchle načítanie,'
+        '"Hlavička: logo je rozmazané|Prvá obrazovka: nie je jasné, čo firma ponúka"\n'
+        'https://nikdy-tu-nebol.sk/,70,no,"Slušné.",Fotky,"Pätička: malé písmo|Mobil: tesné tlačidlá"\n'
+    )
+    created = (await user_client.post("/api/audits", json={"urls": legacy, "reviews": answer})).json()
+    assert created["reviews"] == 1  # only the website that is actually in this audit
+    assert created["unknown_reviews"] == ["https://nikdy-tu-nebol.sk/"]
+
+    await make_worker(app, sites).run_once()
+    site = (await user_client.get(f"/api/audits/{created['audit']['id']}")).json()["sites"][0]
+    view = (await user_client.get(f"/api/audits/{created['audit']['id']}/sites/{site['id']}")).json()
+    review = view["ai_review"]
+    assert review["score"] == 34 and review["model"] == "claude.ai (pasted by hand)"
+    assert review["weaknesses"][0].startswith("Hlavička") and "cost_usd" not in review
+    assert {a["area"]: a["score"] for a in view["areas"]}["design_ai"] == 34
+    assert view["site"]["score"] == site["score"]  # the stored score is the one with the design in it
+
+
+async def test_a_review_file_that_is_not_one_stops_the_audit_with_a_reason(user_client: httpx.AsyncClient, sites) -> None:
+    refused = await user_client.post("/api/audits", json={"urls": sites.urls["legacy"], "reviews": "hello,there\n1,2\n"})
+    assert refused.status_code == 422 and "does not say which website" in refused.text  # readable, with the row number

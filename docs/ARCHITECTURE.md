@@ -354,6 +354,26 @@ named at every level, and the texts stay hedged and free of invented numbers. Th
 repair steps were never in the client PDF anyway - those live in `devnotes.json` and only reach
 the Claude Code export, which is the owner's.
 
+## Reviewing the design before the audit runs (0.8.5)
+
+0.8.3 let the review be pasted in after a website was scanned, from our own screenshots. The owner
+wanted it the other way round: review the list in the Claude app first, then audit - and have
+Claude open the sites itself, because animations, scroll behaviour and menus are the part a still
+frame cannot show.
+
+- **Copy prompt** on the new-audit screen (`POST /api/audits/ai-review/prompt`) builds
+  `ai_review.paste_prompt_many` from the addresses typed in or the chosen CSV, up to
+  `MAX_REVIEW_SITES`. It uses `SYSTEM_LIVE` - the same role, text rules and 0-100 scale as the API
+  prompt, but told to scroll the page, open the menu, hover, and say when motion gets in the way.
+- The CSV comes back with one row per website and is dropped on the same screen. `create_audit`
+  keeps the rows that match a website of this audit (`match_reviews`, by bare host) in
+  `Audit.options["pasted_reviews"]`; rows matching nothing are reported rather than dropped
+  silently. A row with an empty score is Claude saying it could not open that site, which is an
+  answer, not a broken file.
+- The worker applies each review in `_apply_pasted_review` once its website has finished scanning,
+  through the same `apply_review` as every other route, and `_site_done` then reads the score off
+  the payload rather than the raw scan - the design area has just changed it.
+
 ## The design review without an API key (0.8.3)
 
 A claude.ai subscription is not an API key, and the owner has one. So the review that `ai_review.py`

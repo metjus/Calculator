@@ -114,6 +114,10 @@ export type CreateResult = {
   blocked: { url: string; name: string }[];
   /** Audited, but these businesses have already been approached. */
   known: { url: string; name: string; status: string }[];
+  /** Design reviews pasted from the Claude app that matched a website in this audit. */
+  reviews: number;
+  /** Rows of that CSV that match no website here — usually a typo or a row from another list. */
+  unknown_reviews: string[];
 };
 
 export type CheckResult = { id: string; area: string; status: "pass" | "warn" | "fail" | "na"; summary: string; evidence: string[] };

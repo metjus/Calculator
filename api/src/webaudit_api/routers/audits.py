@@ -18,13 +18,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask
 from webaudit import Config, ScanResult, SiteState, claude_export
-from webaudit.ai_review import CSV_COLUMNS, AIReviewError, parse_review_csv, paste_prompt
+from webaudit.ai_review import (
+    CSV_COLUMNS,
+    CSV_COLUMNS_MANY,
+    AIReviewError,
+    parse_review_csv,
+    parse_review_csv_many,
+    paste_prompt,
+    paste_prompt_many,
+)
 from webaudit.dom import bare_host
 from webaudit.pdf import OfferOption, build_html, safe_pdf_name
 from webaudit.report import check_label
 
 from ..ai_service import apply_review, estimate, review_view, reviewer_for
-from ..audit_service import AuditRequest, CreatedAudit, create_audit, parse_csv_bytes, parse_url_text
+from ..audit_service import AuditRequest, CreatedAudit, create_audit, match_reviews, parse_csv_bytes, parse_url_text
 from ..deps import current_user, get_db, get_keybox, get_settings
 from ..keys import get_key
 from ..models import Audit, AuditEvent, AuditSite, CompetitorScan, User, Workspace
@@ -36,7 +44,10 @@ from ..site_view import areas, comparison, facts, page_contents, problems
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 _CONFIG = Config.load()  # labels for problem ids (English operator UI)
 MAX_CSV_BYTES = 2_000_000
-MAX_REVIEW_BYTES = 100_000  # one review as a CSV; anything bigger is the wrong file
+MAX_REVIEW_BYTES = 100_000
+MAX_REVIEW_SITES = (
+    40  # one chat can hold this many websites before the answer gets careless  # one review as a CSV; anything bigger is the wrong file
+)
 MAX_COMPETITORS = 5  # per website; each one is a full scan
 
 
@@ -91,6 +102,8 @@ class CreateResult(BaseModel):
     # allow_do_not_contact to audit them anyway.
     blocked: list[dict[str, str]] = []
     known: list[dict[str, str]] = []  # audited, but these businesses were already approached
+    reviews: int = 0  # design reviews pasted from the Claude app that matched a website here
+    unknown_reviews: list[str] = []  # rows in that CSV that match no website in this audit
 
 
 class OfferIn(BaseModel):
@@ -111,12 +124,17 @@ class PdfIn(BaseModel):
     detail: str = Field(default="no_fix", pattern="^(full|no_fix|short)$")  # how much of each finding the client sees
 
 
+class ReviewPromptIn(BaseModel):
+    urls: str = Field(default="", max_length=200_000)
+
+
 class CreateFromText(BaseModel):
     project: str | None = Field(default=None, max_length=200)
     urls: str = Field(max_length=200_000)
     ai_review: bool = False  # Claude's design review for every website (needs a Claude key)
     competitors: str = Field(default="", max_length=20_000)  # compared with every website in the audit
     allow_do_not_contact: bool = False  # the user confirmed the businesses they marked "do not contact"
+    reviews: str = Field(default="", max_length=400_000)  # design reviews written in the Claude app, as CSV
 
 
 def _site_out(site: AuditSite) -> SiteOut:
@@ -152,7 +170,7 @@ async def _own_audit(db: AsyncSession, user: User, audit_id: int) -> Audit:
     return audit
 
 
-def created_response(result: CreatedAudit) -> CreateResult:
+def created_response(result: CreatedAudit, *, reviews: int = 0, unknown_reviews: list[str] | None = None) -> CreateResult:
     if result.audit is None and result.no_website_leads == 0 and not result.blocked:
         raise HTTPException(422, {"message": "No valid website addresses", "invalid": result.invalid})
     return CreateResult(
@@ -162,6 +180,8 @@ def created_response(result: CreatedAudit) -> CreateResult:
         skipped_duplicates=result.skipped_duplicates,
         blocked=result.blocked,
         known=result.known,
+        reviews=reviews,
+        unknown_reviews=unknown_reviews or [],
     )
 
 
@@ -181,6 +201,30 @@ def _add_competitors(request: AuditRequest, text: str) -> None:
         row.competitors = [url for url in dict.fromkeys(merged) if bare_host(url) != own][:MAX_COMPETITORS]
 
 
+@router.post("/ai-review/prompt", include_in_schema=False)
+async def review_prompt_for_list(
+    body: ReviewPromptIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """The prompt for reviewing a whole list in the Claude app, before the audit runs."""
+    rows, _invalid = parse_url_text(body.urls)
+    urls = list(dict.fromkeys(row.url for row in rows if row.url))[:MAX_REVIEW_SITES]
+    if not urls:
+        raise HTTPException(422, "Write the website addresses first")
+    workspace = await db.get(Workspace, user.workspace_id)
+    return {"prompt": paste_prompt_many(urls, workspace.pdf_language), "websites": urls, "columns": list(CSV_COLUMNS_MANY)}
+
+
+def _pasted_reviews(csv_text: str, urls: list[str], language: str) -> tuple[dict[str, dict], list[str]]:
+    """Reviews from the Claude app, tied to the websites of this audit. Raises HTTPException(422)."""
+    if not csv_text.strip():
+        return {}, []
+    try:
+        rows = parse_review_csv_many(csv_text, language=language)
+    except ValueError as exc:
+        raise HTTPException(422, {"message": str(exc), "invalid": []}) from exc
+    return match_reviews(rows, urls)
+
+
 @router.post("", response_model=CreateResult, status_code=201)
 async def create_from_text(
     body: CreateFromText,
@@ -193,6 +237,8 @@ async def create_from_text(
     request = AuditRequest(project=(body.project or "").strip() or None, rows=rows, invalid=invalid)
     _add_competitors(request, body.competitors)
     options = await _options(db, keybox, user, body.ai_review)
+    workspace = await db.get(Workspace, user.workspace_id)
+    reviews, unknown = _pasted_reviews(body.reviews, [row.url for row in rows if row.url], workspace.pdf_language)
     created = await create_audit(
         db,
         user.workspace_id,
@@ -200,8 +246,9 @@ async def create_from_text(
         max_urls=settings.max_urls_per_audit,
         options=options,
         allow_do_not_contact=body.allow_do_not_contact,
+        reviews=reviews,
     )
-    return created_response(created)
+    return created_response(created, reviews=len(reviews), unknown_reviews=unknown)
 
 
 @router.post("/csv", response_model=CreateResult, status_code=201)
@@ -211,6 +258,7 @@ async def create_from_csv(
     ai_review: bool = Form(default=False),
     competitors: str = Form(default="", max_length=20_000),
     allow_do_not_contact: bool = Form(default=False),
+    reviews: str = Form(default="", max_length=400_000),
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
     keybox: KeyBox = Depends(get_keybox),
@@ -226,6 +274,8 @@ async def create_from_csv(
     request = AuditRequest(project=(project or "").strip() or None, rows=rows, invalid=invalid)
     _add_competitors(request, competitors)
     options = await _options(db, keybox, user, ai_review)
+    workspace = await db.get(Workspace, user.workspace_id)
+    pasted, unknown = _pasted_reviews(reviews, [row.url for row in rows if row.url], workspace.pdf_language)
     created = await create_audit(
         db,
         user.workspace_id,
@@ -233,8 +283,9 @@ async def create_from_csv(
         max_urls=settings.max_urls_per_audit,
         options=options,
         allow_do_not_contact=allow_do_not_contact,
+        reviews=pasted,
     )
-    return created_response(created)
+    return created_response(created, reviews=len(pasted), unknown_reviews=unknown)
 
 
 @router.get("", response_model=list[AuditOut])

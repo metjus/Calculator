@@ -25,6 +25,8 @@ from webaudit.ai_review import ClaudeReviewer, Reviewer
 from webaudit.models import ScanResult, SiteState
 from webaudit.scanner import ProgressEvent
 
+from .ai_service import apply_review
+from .companies import domain_of
 from .db import create_schema, make_engine, make_sessionmaker
 from .keys import get_key
 from .models import Audit, AuditEvent, AuditSite, CompetitorScan, Workspace
@@ -62,6 +64,7 @@ class AuditWorker:
         self.use_browser = use_browser
         self.transport = transport  # tests inject a transport that trusts local fixtures
         self.config_overrides = config_overrides or {}
+        self._config = Config.load()  # replaced per audit with the workspace's own overrides
         self.ai_reviewer_factory = ai_reviewer_factory or ClaudeReviewer  # tests inject a fake
         self.restart_delay = restart_delay
         self._dialect = sessionmaker.kw["bind"].dialect.name if sessionmaker.kw.get("bind") is not None else ""
@@ -224,8 +227,9 @@ class AuditWorker:
                         data={"site_id": site_id, "position": event.index, "url": event.url},
                     )
 
+            self._config = Config.load(overrides=overrides)
             async with Scanner(
-                Config.load(overrides=overrides),
+                self._config,
                 pagespeed_key=pagespeed_key,
                 use_browser=self.use_browser,
                 allow_private=self.settings.allow_private_targets,
@@ -351,9 +355,13 @@ class AuditWorker:
             site = await db.get(AuditSite, site_id)
             if site.state in FINAL_SITE_STATES:
                 return  # already recorded
+            if ok:
+                payload = await self._apply_pasted_review(db, audit_id, result, payload)
             site.state, site.state_reason, site.step = result.state.value, result.state_reason, None
-            site.score = result.score.total if result.score else None
-            site.category = result.score.category.value if result.score else None
+            # Read the score off the payload: a pasted review adds the design area and changes it.
+            scored = payload.get("score") or None
+            site.score = scored["total"] if scored else None
+            site.category = scored["category"] if scored else None
             site.final_url, site.result, site.finished_at = result.final_url, payload, now()
             counters = {"done_count": Audit.done_count + 1}
             if not ok and result.state is not SiteState.CANCELLED:
@@ -405,6 +413,36 @@ class AuditWorker:
                 )
             )
             await db.commit()
+
+    async def _apply_pasted_review(self, db: AsyncSession, audit_id: int, result: ScanResult, payload: dict[str, Any]) -> dict[str, Any]:
+        """Attach a design review the operator had Claude write before the audit, if there is one.
+
+        It arrives as a CSV on the new-audit screen, waits in ``Audit.options`` until the website
+        it belongs to has actually been scanned, and is then graded and scored exactly like a
+        review from the API - the score cannot be computed any earlier, because until now there
+        was nothing to add the design area to.
+        """
+        audit = await db.get(Audit, audit_id)
+        pasted = (audit.options or {}).get("pasted_reviews") or {}
+        domain = domain_of(result.final_url or result.url)
+        review = pasted.get(domain)
+        if not review:
+            return payload
+        try:
+            updated = apply_review(payload, review, None, self._config)
+        except Exception:  # noqa: BLE001 - a bad review must never cost the scan
+            log.exception("pasted design review for %s could not be applied", domain)
+            return payload
+        db.add(
+            AuditEvent(
+                audit_id=audit_id,
+                kind="log",
+                level="ok",
+                message=f"design review pasted from the Claude app applied ({review.get('score')}/100)",
+                data={"url": result.final_url or result.url},
+            )
+        )
+        return updated
 
     def _relative(self, path: str) -> str:
         try:

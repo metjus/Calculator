@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { ClipboardCopy, Play } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Banner, Button, Card, Checkbox, DropZone, Field, PageHeader, Segmented, TextArea, TextInput } from "../components/ui";
@@ -26,6 +26,37 @@ export function NewAudit() {
   const [aiReview, setAiReview] = useState(false);
   const [competitors, setCompetitors] = useState("");
   const [csvRows, setCsvRows] = useState(0);
+  // A design review written in the Claude app before the audit runs: it waits with the audit and
+  // is applied to each website the moment that website has been scanned.
+  const [reviews, setReviews] = useState<{ text: string; name: string; rows: number } | null>(null);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+
+  async function copyReviewPrompt() {
+    setPreparing(true);
+    try {
+      const text = source === "paste" ? urls : file ? await file.text() : "";
+      const got = await api<{ prompt: string; websites: string[] }>("/api/audits/ai-review/prompt", { body: { urls: text } });
+      try {
+        await navigator.clipboard.writeText(got.prompt);
+        toast(`Prompt for ${plural(got.websites.length, "website")} copied — paste it into Claude`);
+      } catch {
+        setPrompt(got.prompt);  // no clipboard permission: show it to copy by hand
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "The prompt could not be prepared", "error");
+    } finally {
+      setPreparing(false);
+    }
+  }
+
+  async function takeReviews(chosen: File) {
+    const text = await chosen.text();
+    const rows = text.split(/\r?\n/).filter((line) => line.trim()).length - 1;
+    setReviews({ text, name: chosen.name, rows: Math.max(0, rows) });
+    setPrompt(null);
+    toast(`${plural(Math.max(0, rows), "review")} ready — they are applied when each website is scanned`);
+  }
 
   async function takeCsv(chosen: File) {
     setFile(chosen);
@@ -50,7 +81,9 @@ export function NewAudit() {
     try {
       let result: CreateResult;
       if (source === "paste") {
-        result = await api<CreateResult>("/api/audits", { body: { project: project || null, urls, ai_review: aiReview, competitors } });
+        result = await api<CreateResult>("/api/audits", {
+          body: { project: project || null, urls, ai_review: aiReview, competitors, reviews: reviews?.text ?? "" },
+        });
       } else {
         if (!file) throw new Error("Choose a CSV file");
         const form = new FormData();
@@ -58,11 +91,14 @@ export function NewAudit() {
         if (project) form.append("project", project);
         form.append("ai_review", String(aiReview));
         form.append("competitors", competitors);
+        if (reviews) form.append("reviews", reviews.text);
         result = await api<CreateResult>("/api/audits/csv", { body: form });
       }
       const notes = [
         result.no_website_leads && `${plural(result.no_website_leads, "business")} without a website added to Customers`,
         result.skipped_duplicates && `${plural(result.skipped_duplicates, "duplicate")} skipped`,
+        result.reviews && `${plural(result.reviews, "design review")} attached`,
+        result.unknown_reviews.length && `${plural(result.unknown_reviews.length, "review")} matched no website here`,
         result.known.length && `${plural(result.known.length, "business")} you have already approached`,
         result.invalid.length && `${plural(result.invalid.length, "entry", "entries")} skipped (not a web address)`,
       ].filter(Boolean);
@@ -220,6 +256,32 @@ export function NewAudit() {
                 )
               }
             />
+            <div className="review-paste">
+              <div className="mini-label">Or do the design review yourself, in the Claude app</div>
+              <p className="field-hint">
+                No API key and nothing billed. Claude opens each website itself, so it sees the animations and how the page behaves —
+                things a screenshot cannot show. The reviews are attached as each website finishes scanning.
+              </p>
+              <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <Button
+                  size="sm"
+                  icon={ClipboardCopy}
+                  loading={preparing}
+                  disabled={source === "paste" ? urlCount === 0 : !file}
+                  onClick={copyReviewPrompt}
+                >
+                  Copy prompt for the Claude app
+                </Button>
+              </div>
+              {prompt && <TextArea readOnly rows={8} value={prompt} aria-label="Prompt to copy" onFocus={(e) => e.currentTarget.select()} />}
+              <DropZone
+                accept=".csv,text/csv"
+                onFile={takeReviews}
+                chosen={reviews ? `${reviews.name} · ${plural(reviews.rows, "review")}` : null}
+                title="Drop the CSV Claude answered with, or choose it"
+                hint="One row per website: website, score, looks_dated, verdict, strengths, weaknesses"
+              />
+            </div>
             {!pagespeedReady && settings.data && (
               <Banner>
                 Speed is measured without Google PageSpeed until you add a key in <Link to="/settings">Settings</Link>.

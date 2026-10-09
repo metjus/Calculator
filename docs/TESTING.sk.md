@@ -160,6 +160,20 @@ Nepotrebuje API kľúč ani kredity; stačí predplatné claude.ai.
 - [ ] Náhľad sa pri prepnutí prekreslí do pol sekundy a mení sa aj počet strán.
 - [ ] Po exporte sa voľba zapamätá — pri ďalšom PDF je predvolená tá, ktorú si použil naposledy.
 
+## Verzia 0.8.5 — posudok dizajnu ešte pred auditom
+
+- [ ] **Nový audit** → vlož adresy (alebo vyber CSV) → v časti *Or do the design review yourself*
+      klikni **Copy prompt for the Claude app** → hláška „Prompt for N websites copied".
+- [ ] V Claude appke vlož prompt. Claude má weby **sám otvoriť**, poscrollovať ich, otvoriť menu
+      a všímať si aj animácie a správanie stránky — nie len statický obrázok.
+- [ ] Odpoveď (jeden riadok na web) ulož ako `.csv` a **pretiahni ju** do rámčeka pod tlačidlom.
+      Ukáže sa názov súboru a počet posudkov.
+- [ ] Spusti audit. Po dobehnutí má mať každý web v detaile **Design review (AI)** s textom
+      od Clauda, „by claude.ai (pasted by hand)", bez ceny, a **skóre už obsahuje oblasť dizajnu**.
+- [ ] Ak je v CSV web, ktorý v tomto audite nie je, program to po spustení napíše
+      („… matched no website here") a zvyšok použije.
+- [ ] Pretiahni tam nesprávny súbor → odmietne to s číslom riadku a dôvodom.
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.

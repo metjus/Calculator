@@ -1838,6 +1838,16 @@ button.bar.selected {
 }
 .link-btn:disabled { cursor: default; color: var(--muted); text-decoration: none; }
 
+.review-paste {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.review-paste .field-hint { margin: 0; }
+
 .known-tag { display: inline-flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 
 .qr-box { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
