@@ -131,6 +131,24 @@ rozbaľ do nového priečinka a prekopíruj k nemu svoj starý priečinok `data`
 - [ ] **Customers → filter „Any time"** — prepni na *Active in the last 30 days*; zákazníci, s ktorými
       sa dlho nič nedialo, zo zoznamu zmiznú. Kombinuje sa s ostatnými filtrami.
 
+## Verzia 0.8.3 — AI posudok dizajnu v appke Claude
+
+Nepotrebuje API kľúč ani kredity; stačí predplatné claude.ai.
+
+- [ ] **Nový audit → Upload CSV** — súbor sa dá **pretiahnuť myšou** do rámčeka, nielen vybrať cez
+      dialóg. Po pustení ukáže názov súboru a počet riadkov.
+- [ ] **Detail webu → Design review (AI) → Copy prompt for the Claude app** → hláška „Prompt copied".
+- [ ] Vedľa sú tlačidlá na stiahnutie **desktop** a **mobile** screenshotu.
+- [ ] V Claude appke založ nový chat, vlož prompt, pripni oba screenshoty a odošli. Claude má
+      odpovedať **iba CSV** s jedným riadkom.
+- [ ] Odpoveď ulož ako `.csv` a **pretiahni ju do rámčeka** na detaile webu → hláška „Review added",
+      objaví sa skóre, verdikt, silné stránky aj slabiny a **skóre webu sa prepočíta**
+      (oblasť „Design (AI review)" prestane byť prázdna).
+- [ ] Hore v karte má byť napísané **by claude.ai (pasted by hand)** a **žiadna cena** — nič sa
+      nefakturovalo.
+- [ ] Pretiahni tam nesprávny súbor (napr. obyčajný text) → má to odmietnuť zrozumiteľnou vetou.
+- [ ] Ak Claude obalí CSV do bloku s ```, má to fungovať tiež.
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.

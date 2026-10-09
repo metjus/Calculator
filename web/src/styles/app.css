@@ -1813,6 +1813,31 @@ button.bar.selected {
 .pdf-preview.full .pdf-paper { max-height: 80vh; }
 .pdf-preview.full .pdf-paper > div { margin: 0; }
 
+.dropzone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  transition: border-color 0.12s, background 0.12s;
+}
+.dropzone > div { display: grid; gap: 2px; }
+.dropzone.over { border-color: var(--accent); border-style: solid; background: var(--accent-weak); }
+.dropzone.off { opacity: 0.55; }
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.link-btn:disabled { cursor: default; color: var(--muted); text-decoration: none; }
+
 .known-tag { display: inline-flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 
 .qr-box { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }

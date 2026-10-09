@@ -81,6 +81,101 @@ def build_request(desktop: bytes, mobile: bytes | None, url: str, language: str)
     }
 
 
+# ------------------------------------------------- the same review, done by hand in claude.ai
+
+CSV_COLUMNS = ("score", "looks_dated", "verdict", "strengths", "weaknesses")
+MULTI_SEPARATOR = "|"
+
+PASTE_PROMPT = """{system}
+
+I will paste two screenshots of the homepage of {url}: the desktop view (1366 px wide) and the mobile \
+view (390 px wide).
+
+Answer with nothing but a CSV file, with this header and exactly one data row:
+
+{header}
+
+- `score`: the whole number 0-100.
+- `looks_dated`: `yes` or `no`.
+- `verdict`: one or two sentences.
+- `strengths`: 1-3 items, separated by `{sep}`.
+- `weaknesses`: 2-5 items, separated by `{sep}`, each starting with where on the page it is.
+- Quote any field that contains a comma, and double any quotation mark inside it.
+- No explanation before or after the CSV."""
+
+
+def paste_prompt(url: str, language: str) -> str:
+    """The prompt to paste into the Claude app, for a review made there instead of through the API.
+
+    Same instructions and same scale as ``build_request``, so a review done by hand lands in the
+    report reading like one the API made; only the delivery differs - a CSV the operator drops
+    back into the program.
+    """
+    return PASTE_PROMPT.format(
+        system=SYSTEM.format(language=LANGUAGES.get(language, "Slovak")),
+        url=url,
+        header=",".join(CSV_COLUMNS),
+        sep=MULTI_SEPARATOR,
+    )
+
+
+def parse_review_csv(text: str, *, language: str) -> dict[str, Any]:
+    """Read back what Claude answered in the app. Raises ValueError with a readable reason.
+
+    The text comes from outside the program, so it is treated like any other input: the numbers
+    are clamped, the lists trimmed and everything redacted, exactly as an API review is.
+    """
+    import csv
+    import io
+
+    body = (text or "").strip()
+    if not body:
+        raise ValueError("The file is empty")
+    if body.startswith("\ufeff"):
+        body = body[1:]
+    # Claude sometimes wraps a CSV in a code fence; take what is inside it.
+    if body.startswith("```"):
+        lines = [line for line in body.splitlines() if not line.strip().startswith("```")]
+        body = "\n".join(lines).strip()
+
+    try:
+        rows = list(csv.DictReader(io.StringIO(body)))
+    except csv.Error as exc:
+        raise ValueError(f"This does not read as a CSV file: {exc}") from exc
+    if not rows:
+        raise ValueError("The file has a header but no row with the review")
+    row = {(key or "").strip().lower(): (value or "") for key, value in rows[0].items() if key}
+    missing = [column for column in ("score", "verdict", "weaknesses") if column not in row]
+    if missing:
+        raise ValueError(f"The file is missing the column(s): {', '.join(missing)}")
+
+    try:
+        score = int(float(str(row["score"]).strip().replace(",", ".")))
+    except ValueError as exc:
+        raise ValueError(f"“{str(row['score'])[:40]}” is not a score between 0 and 100") from exc
+    if not row["verdict"].strip():
+        raise ValueError("The verdict is empty")
+
+    def items(value: str, limit: int) -> list[str]:
+        parts = [part.strip() for part in str(value).split(MULTI_SEPARATOR)]
+        return [redact_text(part)[:400] for part in parts if part][:limit]
+
+    weaknesses = items(row.get("weaknesses", ""), 5)
+    if not weaknesses:
+        raise ValueError("No weaknesses were listed")
+    return {
+        "score": max(0, min(100, score)),
+        "verdict": redact_text(row["verdict"].strip())[:600],
+        "strengths": items(row.get("strengths", ""), 3),
+        "weaknesses": weaknesses,
+        "looks_dated": str(row.get("looks_dated", "")).strip().lower() in {"yes", "true", "1", "áno", "ano"},
+        "language": language,
+        "model": "claude.ai (pasted by hand)",
+        "input_tokens": None,  # nothing was billed to the API key, so there is no cost to show
+        "output_tokens": None,
+    }
+
+
 def _image(data: bytes) -> dict[str, Any]:
     return {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(data).decode()}}
 

@@ -1,8 +1,22 @@
-import { Check, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Eye, FileDown, RotateCw, SquareTerminal, TriangleAlert, Users } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  ClipboardCopy,
+  Download,
+  ExternalLink,
+  Eye,
+  FileDown,
+  RotateCw,
+  SquareTerminal,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { claudePrompt, copyText, exportUrl, Screenshots } from "../components/SiteParts";
-import { Banner, Button, Card, PageHeader, ScoreBadge, Spinner, Tag } from "../components/ui";
+import { Banner, Button, Card, DropZone, PageHeader, ScoreBadge, Spinner, Tag, TextArea } from "../components/ui";
 import { api, type Category, type CompareRow, type ManualDecision, type Problem, type SiteView } from "../lib/api";
 import { CATEGORY_LABEL, CATEGORY_VAR, formatDate, hostOf, plural, SITE_STATE_LABEL, usd } from "../lib/format";
 import { useToast } from "../lib/toast";
@@ -358,6 +372,75 @@ function categoryOf(value: number): Category {
 
 const LANGUAGE_NAME: Record<string, string> = { sk: "Slovak", cs: "Czech", en: "English" };
 
+/** The same review, done by hand in the Claude app and dropped back in.
+ *
+ * The API review is billed to the owner's Claude key; a subscription to claude.ai is not. So
+ * this copies the prompt, points at the two screenshots to upload, and takes the CSV that comes
+ * back — which lands in exactly the place an API review would, score and all.
+ */
+function PastedReview({ data, onUpdate }: { data: SiteView; onUpdate: (view: SiteView) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const base = `/api/audits/${data.audit.id}/sites/${data.site.id}`;
+
+  async function copyPrompt() {
+    setBusy(true);
+    try {
+      const got = await api<{ prompt: string }>(`${base}/ai-review/prompt`);
+      try {
+        await navigator.clipboard.writeText(got.prompt);
+        toast("Prompt copied — paste it into Claude with both screenshots");
+      } catch {
+        setPrompt(got.prompt);  // no clipboard permission: show it to copy by hand
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "The prompt could not be prepared", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function take(file: File) {
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      onUpdate(await api<SiteView>(`${base}/ai-review/import`, { body }));
+      setPrompt(null);
+      toast("Review added — the score now includes it");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "That file could not be read", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const shots = Object.keys(data.result?.screenshots ?? {});
+  return (
+    <div className="stack pasted-review">
+      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <Button size="sm" icon={ClipboardCopy} loading={busy} onClick={copyPrompt}>
+          Copy prompt for the Claude app
+        </Button>
+        {shots.map((name) => (
+          <a key={name} className="btn btn-sm" href={`${base}/screenshots/${name}`} download={`${hostOf(data.site.final_url ?? data.site.input_url) || "web"}-${name}.jpg`}>
+            <Download size={15} aria-hidden /> {name} screenshot
+          </a>
+        ))}
+      </div>
+      {prompt && <TextArea readOnly rows={8} value={prompt} aria-label="Prompt to copy" onFocus={(e) => e.currentTarget.select()} />}
+      <DropZone
+        accept=".csv,text/csv"
+        disabled={busy}
+        onFile={take}
+        title="Drop the CSV Claude answered with, or choose it"
+        hint="One row: score, looks_dated, verdict, strengths, weaknesses. Nothing is billed to your API key."
+      />
+    </div>
+  );
+}
+
 function AiReviewCard({ data, onUpdate }: { data: SiteView; onUpdate: (view: SiteView) => void }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -401,6 +484,7 @@ function AiReviewCard({ data, onUpdate }: { data: SiteView; onUpdate: (view: Sit
             <p className="muted">Not evaluated yet. The score is calculated without the design review until Claude has looked at the screenshots.</p>
           )}
           {action}
+          <PastedReview data={data} onUpdate={onUpdate} />
         </div>
       </Card>
     );
@@ -451,6 +535,7 @@ function AiReviewCard({ data, onUpdate }: { data: SiteView; onUpdate: (view: Sit
           Written in {LANGUAGE_NAME[review.language ?? "sk"] ?? review.language} for the client report. The design counts {data.areas.find((a) => a.area === "design_ai")?.weight ?? 10} % of the score.
         </p>
         {action}
+        <PastedReview data={data} onUpdate={onUpdate} />
       </div>
     </Card>
   );

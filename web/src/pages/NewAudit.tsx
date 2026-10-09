@@ -1,7 +1,7 @@
-import { FileUp, Play } from "lucide-react";
-import { useRef, useState, type FormEvent } from "react";
+import { Play } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Banner, Button, Card, Checkbox, Field, PageHeader, Segmented, TextArea, TextInput } from "../components/ui";
+import { Banner, Button, Card, Checkbox, DropZone, Field, PageHeader, Segmented, TextArea, TextInput } from "../components/ui";
 import { api, ApiError, type AiEstimate, type CreateResult, type SettingsData } from "../lib/api";
 import { plural, usd } from "../lib/format";
 import { useToast } from "../lib/toast";
@@ -26,7 +26,14 @@ export function NewAudit() {
   const [aiReview, setAiReview] = useState(false);
   const [competitors, setCompetitors] = useState("");
   const [csvRows, setCsvRows] = useState(0);
-  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function takeCsv(chosen: File) {
+    setFile(chosen);
+    setError(null);
+    // Rough count for the AI estimate: non-empty lines minus the header.
+    const lines = (await chosen.text()).split(/\r?\n/).filter((line) => line.trim()).length;
+    setCsvRows(Math.max(0, lines - 1));
+  }
 
   const urlCount = urls.split(/[\s,;]+/).filter(Boolean).length;
   const siteCount = source === "paste" ? urlCount : csvRows;
@@ -152,28 +159,14 @@ export function NewAudit() {
                   </>
                 }
               >
-                {(id, describedBy) => (
-                  <div className="row">
-                    <input
-                      ref={fileInput}
-                      id={id}
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="sr-only"
-                      aria-describedby={describedBy}
-                      onChange={async (e) => {
-                        const chosen = e.target.files?.[0] ?? null;
-                        setFile(chosen);
-                        // Rough count for the AI estimate: non-empty lines minus the header.
-                        const lines = chosen ? (await chosen.text()).split(/\r?\n/).filter((l) => l.trim()).length : 0;
-                        setCsvRows(Math.max(0, lines - 1));
-                      }}
-                    />
-                    <Button icon={FileUp} onClick={() => fileInput.current?.click()}>
-                      Choose file
-                    </Button>
-                    <span className={file ? "" : "muted"}>{file ? file.name : "No file chosen"}</span>
-                  </div>
+                {() => (
+                  <DropZone
+                    accept=".csv,text/csv"
+                    onFile={takeCsv}
+                    chosen={file?.name ?? null}
+                    title="Drop a CSV here, or choose one"
+                    hint={file ? `${plural(csvRows, "row")} to audit` : "Straight out of a download folder or a chat window"}
+                  />
                 )}
               </Field>
             )}

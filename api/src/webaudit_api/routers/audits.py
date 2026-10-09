@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask
 from webaudit import Config, ScanResult, SiteState, claude_export
-from webaudit.ai_review import AIReviewError
+from webaudit.ai_review import CSV_COLUMNS, AIReviewError, parse_review_csv, paste_prompt
 from webaudit.dom import bare_host
 from webaudit.pdf import OfferOption, build_html, safe_pdf_name
 from webaudit.report import check_label
@@ -36,6 +36,7 @@ from ..site_view import areas, comparison, facts, page_contents, problems
 router = APIRouter(prefix="/api/audits", tags=["audits"])
 _CONFIG = Config.load()  # labels for problem ids (English operator UI)
 MAX_CSV_BYTES = 2_000_000
+MAX_REVIEW_BYTES = 100_000  # one review as a CSV; anything bigger is the wrong file
 MAX_COMPETITORS = 5  # per website; each one is a full scan
 
 
@@ -508,6 +509,60 @@ async def review_site(
         review = await reviewer_for(request.app.state, key)(desktop, mobile, site.final_url or site.input_url, workspace.pdf_language)
     except AIReviewError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    updated = apply_review(site.result, review, None, await _workspace_config(db, user))
+    site.result = updated
+    site.score, site.category = updated["score"]["total"], updated["score"]["category"]
+    await db.commit()
+    return await get_site_result(audit_id, site_id, user, db, keybox)
+
+
+@router.get("/{audit_id}/sites/{site_id}/ai-review/prompt")
+async def review_prompt(
+    audit_id: int, site_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """The prompt to paste into the Claude app, for a review made there rather than billed to the key."""
+    site = await _own_site(db, user, audit_id, site_id)
+    if site.state != "ok" or not site.result:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only scored websites can be reviewed")
+    workspace = await db.get(Workspace, user.workspace_id)
+    shots = (site.result or {}).get("screenshots") or {}
+    return {
+        "prompt": paste_prompt(site.final_url or site.input_url, workspace.pdf_language),
+        "language": workspace.pdf_language,
+        "screenshots": [name for name in ("desktop", "mobile") if shots.get(name)],
+        "columns": list(CSV_COLUMNS),
+    }
+
+
+@router.post("/{audit_id}/sites/{site_id}/ai-review/import")
+async def import_review(
+    audit_id: int,
+    site_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+    keybox: KeyBox = Depends(get_keybox),
+) -> dict[str, Any]:
+    """Take in the CSV Claude answered with in the app; the score is recomputed as after an API review."""
+    site = await _own_site(db, user, audit_id, site_id)
+    if site.state != "ok" or not site.result:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only scored websites can be reviewed")
+    data = await file.read(MAX_REVIEW_BYTES + 1)
+    if len(data) > MAX_REVIEW_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "That file is far too large for one review")
+    for encoding in ("utf-8-sig", "cp1250"):
+        try:
+            text = data.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        text = data.decode("utf-8", errors="replace")
+    workspace = await db.get(Workspace, user.workspace_id)
+    try:
+        review = parse_review_csv(text, language=workspace.pdf_language)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     updated = apply_review(site.result, review, None, await _workspace_config(db, user))
     site.result = updated
     site.score, site.category = updated["score"]["total"], updated["score"]["category"]

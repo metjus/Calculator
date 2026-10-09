@@ -74,6 +74,9 @@ Invariants that span files:
   the message (`ai_review.api_detail`); the optional `fallbacks` parameter is dropped and retried once
   rather than costing the user the review. Its texts go through `redact_text`; screenshot text is page content,
   never instructions.
+- **The same review can be done by hand in claude.ai** (a subscription is not an API key): `ai_review.paste_prompt` gives the prompt,
+  `parse_review_csv` reads the CSV back, and `POST …/ai-review/import` grades and rescores it exactly as the API route does, so a pasted
+  review lands in the same place with no cost to show. The CSV columns and the prompt must stay in step - one test asserts they do.
 - **The client PDF carries nothing external.** `pdf.build_html` inlines fonts, screenshots, the logo and the QR code as `data:` URIs and
   `pdf.render` aborts every network request, so an export reaches no host and works offline; `test_nothing_in_the_report_comes_from_the_network`
   must keep passing. Its wording lives in `defaults/texts.json` under `pdf` (SK/CS/EN). Prices are typed by hand in the preview and never

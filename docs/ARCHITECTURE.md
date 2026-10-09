@@ -336,6 +336,22 @@ Five small things, each with a reason rather than a wishlist entry:
 - **A "last activity" filter** on the customer list, the brief's date filter, computed from the
   last contact, else the last status change, else the day the customer was added.
 
+## The design review without an API key (0.8.3)
+
+A claude.ai subscription is not an API key, and the owner has one. So the review that `ai_review.py`
+normally bills to the Claude key can also be made by hand in the Claude app:
+
+- `GET …/sites/{id}/ai-review/prompt` returns `ai_review.paste_prompt` - the same system text and the
+  same 0-100 scale as `build_request`, plus the exact CSV header to answer with. The site detail
+  copies it to the clipboard and links the two screenshots to upload.
+- `POST …/sites/{id}/ai-review/import` takes that CSV (`ai_review.parse_review_csv`), redacts and
+  clamps it like any API review, then runs the same `apply_review`, so the design area and the total
+  score move identically. `input_tokens` is `None`, so no cost is shown - nothing was billed.
+- A code fence around the CSV is tolerated, since Claude usually answers with one. Anything that is
+  not a review is refused with a sentence the owner can act on, not a stack trace.
+- `components/ui.tsx` gained a `DropZone`: the new-audit CSV and the review CSV are both files that
+  come straight out of a download folder or a chat window, where a file picker is a detour.
+
 ## Stage 8 as built
 
 Nobody is ever deleted automatically, and nothing written by hand is cleared without asking.

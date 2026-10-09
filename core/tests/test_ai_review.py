@@ -14,7 +14,18 @@ from conftest import needs_browser
 from test_scan import FAST
 
 from webaudit import Config, Scanner, Status
-from webaudit.ai_review import EFFORT, MODEL, AIReviewError, ClaudeReviewer, DesignReview, build_request, to_stored
+from webaudit.ai_review import (
+    CSV_COLUMNS,
+    EFFORT,
+    MODEL,
+    AIReviewError,
+    ClaudeReviewer,
+    DesignReview,
+    build_request,
+    parse_review_csv,
+    paste_prompt,
+    to_stored,
+)
 from webaudit.checks.design_ai import grade_review
 from webaudit.models import Area, CheckResult
 from webaudit.scoring import rank_issues, score
@@ -160,3 +171,50 @@ async def test_a_rejected_request_says_what_the_api_objected_to() -> None:
     reviewer = ClaudeReviewer("sk-ant-test", http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
     with pytest.raises(AIReviewError, match="image too large"):
         await reviewer(JPEG, None, "https://salon.sk/", "sk")
+
+
+def test_the_pasted_prompt_asks_for_the_csv_the_program_reads_back() -> None:
+    """The prompt and the reader have to agree, or a review made in the app cannot come home."""
+    prompt = paste_prompt("https://salon.sk/", "sk")
+    assert ",".join(CSV_COLUMNS) in prompt and "Slovak" in prompt
+    assert "https://salon.sk/" in prompt and "nothing but a CSV" in prompt
+
+    answer = (
+        f"{','.join(CSV_COLUMNS)}\n"
+        '38,yes,"Web pôsobí zastarano.",Prehľadné menu,'
+        '"Hlavička: logo je rozmazané|Prvá obrazovka: nie je jasné, čo firma ponúka"\n'
+    )
+    review = parse_review_csv(answer, language="sk")
+    assert review["score"] == 38 and review["looks_dated"] is True
+    assert review["strengths"] == ["Prehľadné menu"] and len(review["weaknesses"]) == 2
+    assert review["language"] == "sk" and review["input_tokens"] is None  # nothing was billed
+
+
+def test_a_pasted_review_is_cleaned_like_one_from_the_api() -> None:
+    answer = (
+        f"{','.join(CSV_COLUMNS)}\n"
+        '140,no,"Zavolajte na 0905 123 456.",,"Pätička: e-mail info@salon.sk je obrázok|Mobil: menu sa ťažko otvára"\n'
+    )
+    review = parse_review_csv(answer, language="en")
+    assert review["score"] == 100  # clamped
+    assert "0905" not in review["verdict"] and "info@salon.sk" not in review["weaknesses"][0]  # redacted
+    assert review["strengths"] == []
+
+
+def test_an_answer_that_is_not_a_review_is_refused_with_a_reason() -> None:
+    for bad, says in (
+        ("", "empty"),
+        (f"{','.join(CSV_COLUMNS)}\n", "no row"),
+        ("score,verdict\nnot-a-number,Vyzerá dobre\n", "missing the column"),
+        ("score,verdict,weaknesses\nabc,Vyzerá dobre,Hlavička: nič\n", "not a score"),
+        ("score,verdict,weaknesses\n50,,Hlavička: nič\n", "verdict is empty"),
+        ("score,verdict,weaknesses\n50,Vyzerá dobre,\n", "No weaknesses"),
+    ):
+        with pytest.raises(ValueError, match=says):
+            parse_review_csv(bad, language="sk")
+
+
+def test_a_csv_wrapped_in_a_code_fence_still_reads() -> None:
+    """Claude often answers with a fenced block; that is not a reason to make the user edit it."""
+    answer = f'```csv\n{",".join(CSV_COLUMNS)}\n55,no,Slušný základ.,Fotky,"Hlavička: malé písmo|Mobil: tlačidlá sú blízko"\n```'
+    assert parse_review_csv(answer, language="sk")["score"] == 55

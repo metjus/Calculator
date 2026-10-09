@@ -153,3 +153,46 @@ async def test_review_on_demand_rescores_the_website(user_client: httpx.AsyncCli
     app.state.ai_reviewer_factory = failing
     failed = await user_client.post(url)
     assert failed.status_code == 502 and "declined" in failed.text
+
+
+async def test_a_review_done_in_the_claude_app_is_pasted_back_in(user_client: httpx.AsyncClient, app, settings) -> None:
+    """A claude.ai subscription is not an API key, so the same review can arrive as a CSV.
+
+    It has to land exactly where an API review lands: graded, scored into the design area, and
+    costing nothing, because nothing was billed.
+    """
+    ws = (await user_client.get("/api/auth/me")).json()["workspace_id"]
+    lena = await add_company(app, ws, "Kaderníctvo Lena", "https://lena.sk/")
+    result = scan(70, "ok", issues=("trust.clickable_phone",))
+    shots = settings.data_dir / "audits" / "paste"
+    shots.mkdir(parents=True)
+    (shots / "lena-desktop.jpg").write_bytes(b"\xff\xd8desktop")
+    result["screenshots"] = {"desktop": "audits/paste/lena-desktop.jpg"}
+    result["score"]["areas"] = [{"area": "basics", "score": 100, "weight": 16, "checks": 2}]
+    result.update(input_url="https://lena.sk/", final_url="https://lena.sk/", state="ok")
+    audit = await add_audit(app, ws, "Salóny", [(lena, "https://lena.sk/", "ok", 70, result, datetime.now(UTC))])
+    base = f"/api/audits/{audit.id}/sites/{audit.sites[0].id}"
+
+    # The prompt names the website and the columns the importer reads - no key needed for it.
+    prompt = (await user_client.get(f"{base}/ai-review/prompt")).json()
+    assert "https://lena.sk/" in prompt["prompt"] and prompt["screenshots"] == ["desktop"]
+    assert ",".join(prompt["columns"]) in prompt["prompt"] and prompt["language"] == "sk"
+
+    answer = (
+        "score,looks_dated,verdict,strengths,weaknesses\n"
+        '44,yes,"Web pôsobí zastarano.",Prehľadné menu,'
+        '"Hlavička: logo je rozmazané|Mobil: tlačidlá sú príliš blízko"\n'
+    ).encode()
+    view = (await user_client.post(f"{base}/ai-review/import", files={"file": ("review.csv", answer, "text/csv")})).json()
+    review = view["ai_review"]
+    assert review["score"] == 44 and review["weaknesses"][0].startswith("Hlavička")
+    assert review["model"] == "claude.ai (pasted by hand)" and "cost_usd" not in review  # nothing was billed
+    assert {a["area"]: a["score"] for a in view["areas"]}["design_ai"] == 44
+    assert view["site"]["score"] != 70  # rescored with the design area, exactly as after an API review
+
+    async with app.state.sessionmaker() as db:
+        stored = await db.get(AuditSite, audit.sites[0].id)
+        assert stored.score == view["site"]["score"]
+
+    nonsense = (await user_client.post(f"{base}/ai-review/import", files={"file": ("x.csv", b"hello", "text/csv")})).json()
+    assert "no row with the review" in str(nonsense["detail"])  # a readable reason, not a stack trace

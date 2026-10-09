@@ -1,5 +1,14 @@
-import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert, type LucideIcon } from "lucide-react";
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert, Upload, type LucideIcon } from "lucide-react";
+import {
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from "react";
 import type { Category } from "../lib/api";
 import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/format";
 
@@ -160,5 +169,69 @@ export function Spinner({ label = "Loading" }: { label?: string }) {
     <span className="row muted" role="status">
       <LoaderCircle size={16} className="spin" aria-hidden /> {label}
     </span>
+  );
+}
+
+/** A file field you can also drop a file onto — the same control, two ways in.
+ *
+ * Dropping is the point: the files this takes come straight out of a download folder or a chat
+ * window, and a file picker makes that a four-click detour.
+ */
+export function DropZone({
+  accept,
+  onFile,
+  disabled,
+  title,
+  hint,
+  chosen,
+}: {
+  accept: string;
+  onFile: (file: File) => void;
+  disabled?: boolean;
+  title: ReactNode;
+  hint?: ReactNode;
+  chosen?: string | null;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+
+  function take(list: FileList | null) {
+    const file = list?.[0];
+    if (file && !disabled) onFile(file);
+  }
+
+  return (
+    <div
+      className={`dropzone${over ? " over" : ""}${disabled ? " off" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        take(e.dataTransfer.files);
+      }}
+    >
+      <input
+        ref={input}
+        type="file"
+        accept={accept}
+        disabled={disabled}
+        className="sr-only"
+        onChange={(e) => {
+          take(e.target.files);
+          e.target.value = "";  // choosing the same file twice still counts
+        }}
+      />
+      <Upload size={18} aria-hidden />
+      <div>
+        <button type="button" className="link-btn" disabled={disabled} onClick={() => input.current?.click()}>
+          {chosen || title}
+        </button>
+        {hint && <span className="cell-sub">{hint}</span>}
+      </div>
+    </div>
   );
 }
