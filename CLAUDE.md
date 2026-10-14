@@ -98,6 +98,10 @@ Invariants that span files:
   consent click must never navigate: buttons inside links are skipped, frames that only look like consent dialogs
   (`youtube-nocookie`, reCAPTCHA) are left alone, and after the click `browser.same_page` compares the URL - if the page
   moved, the scanner goes back before taking any metric or screenshot. A bar that cannot be closed is hidden with CSS.
+- **The client PDF never names another website.** It used to carry a comparison bar chart, and with no competitors entered
+  it filled that chart with the best other websites of the same audit - other businesses the owner is approaching. The
+  whole block is gone; the comparison lives only on the owner's own website-detail screen
+  (`_competitors` in `routers/audits.py`). `test_the_client_report_never_names_another_website` keeps it that way.
 - **Contact data is never stored.** Trust checks record only booleans/counts; evidence lists must not contain phone numbers or e-mails. Any page text that is kept (the `inventory`, page snapshots, title values) goes through `redact.redact_text` / `redact_html` first. The e2e and export tests assert this.
 - **Thresholds and weights live in `defaults/*.json`, not in code.** Read them through `ctx.t(name)` (scanner thresholds) and `ctx.signatures` (CMS/library/tracker/firewall patterns). Users override them with a config dir and the SaaS with per-workspace dicts, both deep-merged by `Config.load`.
 - **Sites without a score have a `SiteState` and reason.** The states are `unreachable`, `protected`, `disallowed`, `invalid` and `cancelled`. These sites are excluded from statistics.

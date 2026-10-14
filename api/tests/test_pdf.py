@@ -12,6 +12,7 @@ import pytest
 from test_audits import make_worker
 from webaudit.pdf import Profile, qr_svg, vcard
 
+from webaudit_api.companies import domain_of
 from webaudit_api.models import Workspace
 
 needs_browser = pytest.mark.skipif(
@@ -100,6 +101,29 @@ async def test_the_html_preview_is_the_same_document_the_pdf_is_made_from(user_c
     assert "Vlastné zhrnutie." in html and preview["issues"][0]["label"] in html
     assert len(preview["issues"]) == 1 or preview["issues"][1]["label"] not in html  # only what was ticked
     assert "<script" not in html and 'src="http' not in html
+
+
+async def test_the_client_report_never_names_another_website(user_client: httpx.AsyncClient, app, sites) -> None:
+    """The report goes to the customer. The other businesses in the audit are nobody else's business."""
+    legacy, modern = sites.urls["legacy"], sites.urls["modern"]
+    created = (await user_client.post("/api/audits", json={"urls": f"{legacy} {modern}"})).json()
+    audit_id = created["audit"]["id"]
+    await make_worker(app, sites).run_once()
+    rows = (await user_client.get(f"/api/audits/{audit_id}")).json()["sites"]
+    mine = next(row for row in rows if row["input_url"].startswith(legacy))
+    other = next(row for row in rows if row["id"] != mine["id"])
+
+    # On our own screen the comparison is still there - it is the owner's, not the client's.
+    view = (await user_client.get(f"/api/audits/{audit_id}/sites/{mine['id']}")).json()
+    assert view["comparison"]["rows"]
+
+    preview = (await user_client.get(f"/api/audits/{audit_id}/sites/{mine['id']}/pdf-preview")).json()
+    assert "competitors" not in preview
+    body = {"language": "sk", "summary": preview["summary"], "include": [i["id"] for i in preview["issues"]], "offer": preview["offer"]}
+    html = (await user_client.post(f"/api/audits/{audit_id}/sites/{mine['id']}/pdf-html", json=body)).text
+
+    assert domain_of(other["final_url"] or other["input_url"]) not in html
+    assert "Porovnanie" not in html and "Comparison" not in html
 
 
 async def test_the_qr_carries_exactly_what_settings_holds(user_client: httpx.AsyncClient, app, sites) -> None:

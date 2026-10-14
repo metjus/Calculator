@@ -289,8 +289,6 @@
     "shots_title": {"sk": "Počítač a telefón", "cs": "Počítač a telefon", "en": "Desktop and phone"},
     "shot_desktop": {"sk": "Počítač", "cs": "Počítač", "en": "Desktop"},
     "shot_mobile": {"sk": "Telefón", "cs": "Telefon", "en": "Phone"},
-    "compare_eyebrow": {"sk": "Porovnanie", "cs": "Porovnání", "en": "Comparison"},
-    "compare_title": {"sk": "Weby z rovnakého odboru a okolia", "cs": "Weby ze stejného oboru a okolí", "en": "Websites in the same field and area"},
     "offer_eyebrow": {"sk": "Ponuka", "cs": "Nabídka", "en": "Offer"},
     "offer_title": {"sk": "Tri možnosti, ako ďalej", "cs": "Tři možnosti, jak dál", "en": "Three ways forward"},
     "offer_recommended": {"sk": "Odporúčam", "cs": "Doporučuji", "en": "Recommended"},

@@ -186,6 +186,13 @@ Nepotrebuje API kľúč ani kredity; stačí predplatné claude.ai.
 - [ ] Skús ešte zopár webov s cookie lištou: lišta má byť zatvorená (ako doteraz), a keď sa zatvoriť
       nedá, nemá byť na screenshote vidno.
 
+## Verzia 0.8.7 — v PDF nie sú cudzie weby
+
+- [ ] Sprav audit s viacerými webmi naraz, potom **Client PDF** pre jeden z nich.
+- [ ] V náhľade ani v exportovanom PDF **nie je strana „Porovnanie"** a nikde nie je adresa iného
+      webu z toho auditu — klient vidí len svoju stránku.
+- [ ] Na obrazovke **detailu webu** (v programe) porovnanie zostáva, to je pre vás.
+
 ### Čo zatiaľ nie je
 
 - PDF „Čo by vám web priniesol" pre firmy bez webu — potrebuje vlastný návrh a texty.

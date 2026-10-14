@@ -448,9 +448,8 @@ async def _pdf_content(
     if not (site.result or {}).get("score"):
         raise HTTPException(422, "This website has no score, so there is nothing to put in a report")
     workspace = await db.get(Workspace, user.workspace_id)
-    rows = (await _competitors(db, site))["rows"]
     name = site.company.name if site.company else None
-    content = content_for(site, workspace, settings, _CONFIG, language=language, competitors=rows, client_name=name)
+    content = content_for(site, workspace, settings, _CONFIG, language=language, client_name=name)
     return content, site, workspace
 
 

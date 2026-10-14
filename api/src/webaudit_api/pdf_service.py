@@ -73,7 +73,6 @@ def content_for(
     config: Config,
     *,
     language: str,
-    competitors: list[dict[str, Any]],
     client_name: str | None = None,
 ) -> PdfContent:
     return PdfContent(
@@ -81,7 +80,6 @@ def content_for(
         profile=profile_of(workspace, settings),
         language=language if language in LANGUAGES else "sk",
         client_name=client_name,
-        competitors=[{"domain": row["domain"], "score": row.get("score")} for row in competitors if row.get("score") is not None],
         screenshots=_screenshots(site, settings),
     )
 
@@ -113,7 +111,6 @@ def preview(content: PdfContent, config: Config, workspace: Workspace) -> dict[s
         "summary": default_summary(content, config, len(issues)),
         "issues": issues,
         "offer": [vars(option) for option in offer_defaults(content, config, workspace)],
-        "competitors": content.competitors,
         "screenshots": sorted(content.screenshots),
         "profile": {k: v for k, v in vars(content.profile).items() if k != "logo"},
         "has_logo": content.profile.logo is not None,

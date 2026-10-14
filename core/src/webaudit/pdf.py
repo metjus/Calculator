@@ -69,7 +69,6 @@ class PdfContent:
     include: list[str] | None = None  # check ids to print, in order; None = every issue
     detail: str = "no_fix"  # see DETAIL_LEVELS
     offer: list[OfferOption] = field(default_factory=list)
-    competitors: list[dict[str, Any]] = field(default_factory=list)
     screenshots: dict[str, bytes] = field(default_factory=dict)
     today: date | None = None
 
@@ -326,13 +325,6 @@ h3{font-weight:600;font-size:11.5pt}
 .shots img{display:block;width:100%}
 .shots figcaption{font-size:8pt;color:#716b63;padding:2mm}
 .shots .d{flex:0 0 108mm}.shots .m{flex:0 0 42mm}
-.barrow{display:flex;align-items:center;gap:4mm;margin-bottom:2.5mm;font-size:9.5pt}
-.barrow .name{flex:0 0 52mm;color:#57524a}
-.barrow .track{flex:1;height:7mm;background:#f0ece4;border-radius:3px;position:relative}
-.barrow .track i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:#b9cfc9}
-.barrow.you{font-weight:600}
-.barrow.you .track i{background:#cb5a1a}
-.barrow .v{flex:0 0 12mm;text-align:right;font-variant-numeric:tabular-nums}
 .boxes{display:flex;gap:4mm;align-items:stretch;margin-top:5mm}
 .box{flex:1;border:1px solid #e2ddd4;border-radius:8px;padding:6mm 5mm;display:flex;flex-direction:column}
 .box.pick{border:2px solid #0b6e72;background:#f3f8f7;margin-top:-4mm;padding-top:10mm;position:relative}
@@ -470,23 +462,10 @@ def build_html(content: PdfContent, config: Config) -> str:
         f"<figcaption>{_esc(label('shot_' + name))}</figcaption></figure>"
         for name, data in ((n, content.screenshots[n]) for n in ("desktop", "mobile") if content.screenshots.get(n))
     )
-    rivals = [c for c in content.competitors if c.get("score") is not None]
-    bars = ""
-    if rivals and score:
-        bars = (
-            f'<div class="barrow you"><span class="name">{_esc(domain)}</span>'
-            f'<span class="track"><i style="width:{score.total}%"></i></span><span class="v">{score.total}</span></div>'
-        )
-        bars += "".join(
-            f'<div class="barrow"><span class="name">{_esc(c["domain"])}</span>'
-            f'<span class="track"><i style="width:{int(c["score"])}%"></i></span><span class="v">{int(c["score"])}</span></div>'
-            for c in rivals
-        )
-    if shots or bars:
+    if shots:
         pages.append(
             f"""<section class="page"><div class="pad">
-  {f'<div class="eyebrow">{_esc(label("shots_eyebrow"))}</div><h2>{_esc(label("shots_title"))}</h2><div class="shots">{shots}</div>' if shots else ""}
-  {f'<div class="eyebrow" style="margin-top:10mm">{_esc(label("compare_eyebrow"))}</div><h2>{_esc(label("compare_title"))}</h2>{bars}' if bars else ""}
+  <div class="eyebrow">{_esc(label("shots_eyebrow"))}</div><h2>{_esc(label("shots_title"))}</h2><div class="shots">{shots}</div>
 </div>{foot(len(pages) + 1)}</section>"""
         )
 

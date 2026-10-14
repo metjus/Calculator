@@ -412,6 +412,17 @@ The rule now is that the consent click may never decide what we measure:
 `test_a_cookie_bar_that_navigates_away_does_not_decide_what_we_measure` drives both kinds of trap
 (the link-wrapped button and one that navigates from JavaScript) against fixture pages.
 
+## The client report names one website (0.8.7)
+
+The PDF carried a bar chart comparing the client with other websites. When the audit listed no
+competitors it filled the chart with the three best-scoring *other websites of the same audit* -
+that is, other businesses the owner is in the middle of approaching, printed in a document that
+goes out to a customer. The block is removed from the report entirely, together with its wording in
+`texts.json` and `PdfContent.competitors`.
+
+The comparison itself is not gone: the website-detail screen still shows it, because that screen is
+the owner's. Only the client's copy stops at their own website.
+
 ## Stage 8 as built
 
 Nobody is ever deleted automatically, and nothing written by hand is cleared without asking.
